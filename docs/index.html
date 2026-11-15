@@ -1,0 +1,1156 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ma Routine TDAH</title>
+<style>
+:root{
+  --bg:#f7f3ff;--bg2:#eaf3ff;--card:#ffffff;--ink:#2a2347;--mute:#7a7396;--line:#ebe6fb;
+  --main:#7c5cff;--main2:#b45cff;--main-ink:#fff;--ok:#22c58b;--warn:#ffb020;--soft:#f0ebff;
+  --c0:#ff8a5c;--c1:#5b8cff;--c2:#22c58b;--c3:#ff5c9a;
+  --shadow:0 6px 24px rgba(92,64,200,.10);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#14111f;--bg2:#171a2e;--card:#1f1b30;--ink:#f3f0ff;--mute:#a9a3c8;--line:#302a49;
+    --main:#957cff;--main2:#c27bff;--soft:#2a2444;--ok:#3ddba0;--shadow:0 6px 24px rgba(0,0,0,.35)}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);min-height:100vh;
+  background:linear-gradient(160deg,var(--bg) 0%,var(--bg2) 100%) fixed;
+  font:17px/1.5 ui-rounded,"Nunito","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  padding:10px 0 40px}
+main{max-width:620px;margin:0 auto;padding:14px 16px}
+h1{font-size:1.65rem;margin:0;letter-spacing:-.02em;line-height:1.15}
+h2{font-size:1.12rem;margin:0;letter-spacing:-.01em}
+button{font:inherit;cursor:pointer;border:0;border-radius:16px;padding:12px 18px;background:var(--soft);color:var(--ink);
+  min-height:48px;transition:transform .12s,box-shadow .12s,filter .12s}
+button:hover{filter:brightness(.97)}
+button:active{transform:scale(.96)}
+button.primary{background:linear-gradient(135deg,var(--main),var(--main2));color:var(--main-ink);font-weight:700;box-shadow:0 6px 16px rgba(124,92,255,.35)}
+button.ok{background:linear-gradient(135deg,#22c58b,#16a56f);color:#fff;font-weight:700;box-shadow:0 6px 16px rgba(34,197,139,.35)}
+button.ghost{background:transparent;color:var(--mute);min-height:40px;padding:8px 10px;box-shadow:none}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--main);outline-offset:2px}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--card);border:2px solid var(--line);border-radius:14px;padding:11px 14px;width:100%;transition:border-color .15s}
+input:focus{border-color:var(--main)}
+.card{background:var(--card);border-radius:24px;padding:18px;margin:16px 0;box-shadow:var(--shadow);border:1px solid var(--line)}
+.sub{color:var(--mute);font-size:.9rem}
+
+/* Hero */
+header.top{display:flex;align-items:center;gap:14px;justify-content:space-between;color:#fff;
+  background:radial-gradient(120% 140% at 0% 0%,#ff9a6c 0%,rgba(255,154,108,0) 55%),linear-gradient(135deg,#7c5cff,#b45cff 60%,#ff5c9a);
+  border-radius:28px;padding:20px 20px;box-shadow:0 14px 34px rgba(124,92,255,.38);margin-top:4px}
+header.top .sub{color:rgba(255,255,255,.88)}
+.ring{width:84px;height:84px;flex:none;position:relative}
+.ring svg{transform:rotate(-90deg);width:84px;height:84px}
+.ring circle:first-child{stroke:rgba(255,255,255,.28)}
+.ring circle:last-child{stroke:#fff;transition:stroke-dashoffset .6s}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:1.1rem;color:#fff}
+
+.msg{background:var(--card);border-radius:18px;padding:12px 16px;margin:14px 0;box-shadow:var(--shadow);border:1px solid var(--line);
+  border-left:6px solid var(--main)}
+#energyBtn,#panicBtn,#therapyBtn{background:var(--card);box-shadow:var(--shadow);border:1px solid var(--line);border-radius:99px;
+  padding:9px 16px;min-height:44px;font-size:.92rem;font-weight:600}
+#panicBtn{color:#e0457b}
+#energyBtn.low{background:var(--warn);color:#2a2347;border-color:transparent}
+
+/* Routines */
+.card.routine{border-top:6px solid var(--acc,var(--main))}
+.card.routine h2{font-size:1.25rem}
+.bar{height:12px;background:var(--soft);border-radius:99px;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc,var(--ok)),var(--ok));border-radius:99px;transition:width .5s}
+.step{display:flex;align-items:center;gap:12px;padding:12px 6px;border-top:1px dashed var(--line)}
+.step:first-of-type{border-top:0}
+.step label{flex:1;display:flex;gap:14px;align-items:center;cursor:pointer}
+.step input[type=checkbox]{appearance:none;-webkit-appearance:none;width:32px;height:32px;flex:none;border-radius:50%;
+  border:3px solid var(--acc,var(--main));background:transparent;padding:0;display:grid;place-items:center;cursor:pointer;transition:all .18s}
+.step input[type=checkbox]::after{content:"✓";color:#fff;font-weight:800;font-size:1.05rem;transform:scale(0);transition:transform .18s}
+.step input[type=checkbox]:checked{background:var(--ok);border-color:var(--ok);box-shadow:0 0 0 5px rgba(34,197,139,.18)}
+.step input[type=checkbox]:checked::after{transform:scale(1)}
+.step.done span.t{text-decoration:line-through;color:var(--mute);opacity:.7}
+.chip{font-size:.78rem;background:var(--soft);border-radius:99px;padding:3px 11px;color:var(--mute);white-space:nowrap;font-weight:600}
+
+/* Navigation flottante */
+nav{position:fixed;top:10px;left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:560px;
+  background:var(--card);border:1px solid var(--line);border-radius:26px;display:flex;gap:2px;padding:6px;
+  box-shadow:0 10px 30px rgba(60,40,140,.2);z-index:10}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:0;font-size:.7rem;background:transparent;
+  padding:6px 2px;min-height:54px;border-radius:20px;color:var(--mute);font-weight:600}
+nav button span{font-size:1.45rem;line-height:1.15;transition:transform .15s}
+nav button.on{background:linear-gradient(135deg,var(--main),var(--main2));color:#fff;box-shadow:0 4px 12px rgba(124,92,255,.4)}
+nav button.on span{transform:translateY(-1px) scale(1.1)}
+.hidden{display:none!important}
+
+/* Focus */
+.focus{text-align:center;padding:26px 18px}
+.focus .big{font-size:1.75rem;font-weight:800;margin:10px 0;letter-spacing:-.02em}
+.timer{font-size:4rem;font-weight:800;font-variant-numeric:tabular-nums;margin:8px 0;
+  background:linear-gradient(135deg,var(--main),var(--main2),#ff5c9a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.edit-step{display:flex;gap:6px;align-items:center;margin:8px 0;flex-wrap:wrap}
+.edit-step input[type=number]{width:72px}
+.edit-step input[data-f=text]{flex:1;min-width:140px;width:auto}
+
+.pop{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font-size:4.5rem;pointer-events:none;animation:pop 1.1s ease-out forwards;z-index:30;filter:drop-shadow(0 6px 12px rgba(0,0,0,.25))}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-30%) scale(.4)}30%{opacity:1;transform:translate(-50%,-50%) scale(1.25)}100%{opacity:0;transform:translate(-50%,-130%) scale(1)}}
+
+.overlay{position:fixed;inset:0;background:linear-gradient(160deg,var(--bg),var(--bg2));z-index:20;display:grid;place-items:center;text-align:center;padding:24px;overflow:auto}
+.breath{width:170px;height:170px;border-radius:50%;margin:28px auto;opacity:.85;
+  background:radial-gradient(circle at 35% 30%,#d7c9ff,var(--main) 60%,var(--main2));box-shadow:0 0 60px rgba(124,92,255,.5);animation:breath 13s ease-in-out infinite}
+@keyframes breath{0%{transform:scale(.6)}31%{transform:scale(1)}54%{transform:scale(1)}100%{transform:scale(.6)}}
+
+.wk{display:flex;gap:8px;align-items:flex-end;height:130px;margin-top:10px}
+.wk div{flex:1;text-align:center;font-size:.75rem;display:flex;flex-direction:column;justify-content:flex-end;height:100%;color:var(--mute);font-weight:600}
+.wk i{display:block;background:linear-gradient(180deg,var(--main2),var(--main));border-radius:10px 10px 4px 4px;min-height:4px;margin-bottom:4px}
+/* Menu en tiroir (bouton ☰) */
+nav{top:0;left:0;right:0;bottom:0;transform:none;width:auto;max-width:none;background:rgba(20,15,40,.5);border:0;border-radius:0;
+  box-shadow:none;display:none;align-items:center;justify-content:center;padding:20px;z-index:25;backdrop-filter:blur(4px)}
+nav.open{display:flex}
+nav .panel{background:var(--card);border-radius:28px;padding:12px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:6px;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+nav button{flex:none;flex-direction:row;justify-content:flex-start;gap:14px;font-size:1.05rem;padding:12px 16px;min-height:56px;border-radius:18px;width:100%;text-align:left}
+nav button span{font-size:1.5rem}
+.menubar{margin:2px 0 12px}
+#menuBtn{display:inline-flex;gap:8px;align-items:center;background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.35);
+  backdrop-filter:blur(6px);border-radius:99px;font-weight:700;font-size:.85rem;padding:6px 14px;min-height:36px;margin-bottom:10px;box-shadow:none}
+/* ===== Adaptation à la taille de l'écran ===== */
+html{-webkit-text-size-adjust:100%}
+body{font-size:clamp(16px,1rem + .3vw,19px);overflow-x:hidden}
+main{max-width:100%;padding:14px max(16px,env(safe-area-inset-right)) 14px max(16px,env(safe-area-inset-left))}
+img,svg{max-width:100%}
+nav{overflow:auto}
+nav .panel{max-height:calc(100vh - 40px);overflow:auto}
+header.top{flex-wrap:nowrap}
+header.top>div:first-child{flex:1;min-width:0}
+.card.routine{border-top:1px solid var(--line);box-shadow:var(--shadow),inset 0 7px 0 var(--acc,var(--main))}
+.card.routine>:first-child{margin-top:4px}
+.seg{justify-content:flex-start!important;margin:4px 0 6px}
+.seg button{border-radius:99px;padding:10px 18px;font-weight:700}
+.seg button.on{background:linear-gradient(135deg,var(--main),var(--main2));color:#fff}
+.stepper{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px dashed var(--line);gap:10px}
+.stepper:first-of-type{border-top:0}
+.stepper .ctl{display:flex;align-items:center;gap:10px}
+.stepper b{min-width:28px;text-align:center;font-size:1.25rem}
+.stepper button{min-height:42px;width:46px;padding:0;font-size:1.4rem}
+button.chip{min-height:30px;padding:3px 11px;border:0;font-weight:600}
+.ideas button{min-height:40px;padding:8px 14px;font-size:.88rem;border-radius:99px}
+details.card>summary{list-style:none;cursor:pointer}
+details.card>summary::-webkit-details-marker{display:none}
+.chev{color:var(--mute);transition:transform .2s;display:inline-block}
+details[open] .chev{transform:rotate(180deg)}
+.atchip{background:var(--soft);color:var(--ink)}
+.duechip{background:var(--warn);color:#2a2347}
+.load{border-radius:14px;padding:10px 14px;margin:10px 0;font-size:.9rem;background:var(--soft)}
+.load.ok{background:rgba(34,197,139,.16)}
+.load.warn{background:rgba(255,176,32,.24)}
+.load.bad{background:rgba(255,92,154,.22)}
+.load div{margin-top:4px}
+.tips{padding-left:22px;margin:8px 0}
+.tips li{margin:6px 0}
+.step.prio{background:linear-gradient(90deg,rgba(255,176,32,.22),rgba(255,176,32,0));border-left:5px solid var(--warn);border-radius:14px;padding-left:10px;font-weight:700}
+.prochip{background:var(--warn);color:#2a2347}
+.assist{max-width:460px;width:100%;text-align:left}
+.assist h2{font-size:1.25rem;text-align:center}
+.assist .task{background:var(--soft);border-radius:14px;padding:10px 14px;margin:12px 0;font-weight:700;text-align:center}
+.qrow{margin:12px 0}
+.qrow p{margin:0 0 6px;font-weight:600}
+.qrow .row{justify-content:flex-start}
+.qrow button{min-height:42px;padding:8px 22px}
+.qrow button.on{background:linear-gradient(135deg,var(--main),var(--main2));color:#fff;font-weight:700}
+.reco{border-radius:16px;padding:12px 14px;margin:14px 0;background:var(--soft)}
+.reco.top{background:rgba(255,176,32,.2)}
+.assist .choices{display:flex;flex-direction:column;gap:8px}
+/* Onglet Routines : une routine par ligne, étapes bien lisibles */
+#tab-edit #editList{display:block!important;max-width:820px;margin:0 auto}
+#tab-edit #editList>.card{margin:0 0 18px}
+#editList .edit-step{flex-wrap:wrap;gap:8px;padding:8px 0;border-top:1px dashed var(--line)}
+#editList .edit-step input[data-f=text]{flex:1 1 100%;min-width:0;font-weight:600}
+@media (min-width:560px){
+  #editList .edit-step{flex-wrap:nowrap}
+  #editList .edit-step input[data-f=text]{flex:1 1 auto}
+}
+.slot{margin-top:6px}
+.slothead{font-weight:700;font-size:.88rem;color:var(--mute);margin:14px 0 2px;display:flex;gap:8px;align-items:center;cursor:default}
+details.slot>summary{cursor:pointer}
+.slot.now>.slothead{color:var(--main)}
+.nowchip{background:var(--main);color:#fff}
+.card h2 .chip{vertical-align:middle;margin-left:4px}
+main>.row{margin-bottom:22px}
+#tab-today,#tab-focus,#tab-dump,#tab-stats,#tab-edit{margin-top:6px}
+.msg{border-left:1px solid var(--line);box-shadow:var(--shadow),inset 6px 0 0 var(--main)}
+#tab-today,#editList,#tab-stats,#tab-focus{display:block}
+
+/* Petits téléphones */
+@media (max-width:380px){
+  main{padding-left:12px;padding-right:12px}
+  h1{font-size:1.4rem}
+  header.top{padding:16px;border-radius:22px}
+  .ring,.ring svg{width:68px;height:68px}
+  .card{padding:14px;border-radius:20px}
+  .timer{font-size:3.1rem}
+  .focus .big{font-size:1.4rem}
+  .wk{gap:4px}
+  button{padding:10px 14px}
+}
+/* Tablettes */
+@media (min-width:700px){
+  main{max-width:820px;padding-top:24px}
+  header.top{padding:26px 30px}
+  .ring,.ring svg{width:104px;height:104px}
+  .ring b{font-size:1.3rem}
+  h1{font-size:2rem}
+  #tab-today>.card:first-child,#tab-stats>.card:first-child{grid-column:1/-1}
+  #tab-dump{max-width:640px;margin:0 auto}
+  #tab-edit>*:not(#editList){max-width:640px;margin-left:auto;margin-right:auto}
+  #addRoutine{margin:18px auto!important;display:block;max-width:640px}
+}
+/* Ordinateurs */
+@media (min-width:1100px){
+  #tab-today>.card:first-child{grid-column:1/-1}
+  .timer{font-size:5rem}
+}
+/* Écran bas (téléphone en paysage) */
+@media (max-height:520px){
+  .overlay{place-items:start center}
+  .breath{width:110px;height:110px;margin:12px auto}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <button id="menuBtn" aria-haspopup="true">☰ <span id="curTab">✅ Aujourd'hui</span></button>
+      <h1 id="hello">Bonjour 👋</h1>
+      <div class="sub" id="date"></div>
+      <div class="sub" id="streak"></div>
+    </div>
+    <div class="ring" id="ring"></div>
+  </header>
+  <div class="msg" id="encourage"></div>
+  <div class="row" style="justify-content:flex-start">
+    <button id="energyBtn"></button>
+    <button id="panicBtn">🆘 Je suis débordé·e</button>
+    <button id="therapyBtn">💊 Ouvrir Therapy</button>
+  </div>
+
+  <!-- AUJOURD'HUI -->
+  <section id="tab-today"></section>
+
+  <!-- FOCUS -->
+  <section id="tab-focus" class="hidden">
+    <div class="card focus" id="focusCard"></div>
+    <div class="card focus">
+      <h2>⏱️ Minuteur libre</h2>
+      <div class="timer" id="freeTimer">25:00</div>
+      <div class="row">
+        <button data-free="5">5 min</button>
+        <button data-free="15">15 min</button>
+        <button data-free="25">25 min</button>
+        <button id="freeStop">Stop</button>
+      </div>
+      <p class="sub">Astuce : travaille par petits blocs, puis fais une vraie pause.</p>
+    </div>
+  </section>
+
+  <!-- VIDAGE -->
+  <section id="tab-dump" class="hidden">
+    <div class="card">
+      <h2>🧠 Vide-tête</h2>
+      <p class="sub">Une idée t'envahit ? Note-la ici en 3 secondes, puis retourne à ce que tu faisais.</p>
+      <form id="dumpForm" class="row" style="flex-wrap:nowrap">
+        <input id="dumpInput" placeholder="Ex : appeler le médecin…" autocomplete="off">
+        <button class="primary">Ajouter</button>
+      </form>
+      <div id="dumpList"></div>
+    </div>
+  </section>
+
+  <!-- BILAN -->
+  <section id="tab-stats" class="hidden"></section>
+
+  <!-- MÉNAGE -->
+  <section id="tab-home" class="hidden"></section>
+
+  <!-- ROUTINES -->
+  <section id="tab-edit" class="hidden">
+    <div id="editList"></div>
+    <button class="primary" id="addRoutine" style="width:100%">➕ Nouvelle routine</button>
+    <div class="card">
+      <h2>🧭 Assistant de priorité</h2>
+      <label class="row" style="justify-content:flex-start;flex-wrap:nowrap;cursor:pointer">
+        <input type="checkbox" id="assistToggle" style="width:24px;height:24px;padding:0;flex:none">
+        <span>Me poser 3 questions quand j'ajoute une tâche</span></label>
+    </div>
+    <div class="card">
+      <h2>💊 Lien vers ton appli Therapy</h2>
+      <p class="sub">Adresse de ton appli (médicaments, suivi). Vérifie qu'elle est bonne.</p>
+      <input id="therapyUrl" type="url" placeholder="https://…">
+    </div>
+    <div class="card">
+      <h2>🔔 Rappels</h2>
+      <p class="sub">Notification à l'heure choisie (l'appli doit rester ouverte dans un onglet).</p>
+      <div class="row" style="justify-content:flex-start">
+        <button id="notifBtn">Activer les notifications</button>
+      </div>
+    </div>
+    <button class="ghost" id="resetAll">Réinitialiser toutes les données</button>
+  </section>
+</main>
+
+<div class="overlay hidden" id="assist"></div>
+<div class="overlay hidden" id="panic"></div>
+<nav id="nav"><div class="panel">
+  <button data-tab="today" class="on"><span>✅</span>Aujourd'hui</button>
+  <button data-tab="focus"><span>🎯</span>Focus</button>
+  <button data-tab="dump"><span>🧠</span>Vide-tête</button>
+  <button data-tab="home"><span>🧹</span>Ménage</button>
+  <button data-tab="stats"><span>📊</span>Bilan</button>
+  <button data-tab="edit"><span>⚙️</span>Routines</button>
+</div></nav>
+
+<script>
+const $ = s => document.querySelector(s);
+const uid = () => Math.random().toString(36).slice(2,9);
+const todayKey = () => new Date().toLocaleDateString('sv'); // YYYY-MM-DD
+
+const DEFAULT = {
+  routines:[
+    {id:uid(),emoji:'🌅',name:'Matin',time:'07:30',steps:[
+      {id:uid(),text:'Boire un grand verre d\'eau',min:2,core:true},
+      {id:uid(),text:'Me laver / m\'habiller',min:15},
+      {id:uid(),text:'Petit-déjeuner',min:15,core:true},
+      {id:uid(),text:'Vérifier mes 3 priorités du jour',min:5},
+    ]},
+    {id:uid(),emoji:'🌙',name:'Soir',time:'21:30',steps:[
+      {id:uid(),text:'Ranger 5 objets qui traînent',min:5},
+      {id:uid(),text:'Préparer le sac / les affaires de demain',min:10},
+      {id:uid(),text:'Brosser les dents',min:3,core:true},
+      {id:uid(),text:'Écran off, lumière douce',min:2},
+    ]},
+  ],
+  log:{},     // {date:{stepId:true}}
+  dump:[],
+  skipped:{}, // {date:{stepId:true}} "plus tard"
+};
+let S;
+try{ S = JSON.parse(localStorage.getItem('routine-tdah')) || DEFAULT; }catch(e){ S = DEFAULT; }
+S = Object.assign({home:null,tasks:[],mood:{},points:0,energy:'normal',reward:'',therapyUrl:'https://mon-suivi-therapie.github.io/therapy-app/'}, S);
+if(!S.v){ // v2 : ajoute la routine « Après-midi » une seule fois
+  S.v=2;
+  if(!S.routines.some(r=>/apr[eè]s/i.test(r.name))){
+    S.routines.splice(Math.min(1,S.routines.length),0,{id:uid(),emoji:'☀️',name:'Après-midi',time:'13:30',steps:[
+      {id:uid(),text:'Déjeuner posé, sans écran',min:20,core:true},
+      {id:uid(),text:'Marcher ou m\'étirer 5 minutes',min:5},
+      {id:uid(),text:'Une seule tâche importante (25 min max)',min:25},
+      {id:uid(),text:'Boire de l\'eau + petite collation',min:5,core:true},
+    ]});
+  }
+}
+if(S.v<3){ // v3 : étapes à heure précise (température, lever, coucher), ajoutées une seule fois
+  S.v=3;
+  const has=re=>S.routines.some(r=>r.steps.some(s=>re.test(s.text)));
+  const matin=S.routines.find(r=>/matin/i.test(r.name)), soir=S.routines.find(r=>/soir/i.test(r.name));
+  if(matin && !has(/temp[ée]rature/i)) matin.steps.unshift({id:uid(),text:'Prendre ma température',at:'07:00',min:2,core:true});
+  if(matin && !has(/lever/i)) matin.steps.splice(1,0,{id:uid(),text:'Me lever',at:'07:30',min:1,core:true});
+  if(soir && !has(/coucher|au lit/i)) soir.steps.push({id:uid(),text:'Aller au lit',at:'22:30',min:0,core:true});
+}
+if(S.v<4){ // v4 : 7 moments de la journée (Réveil, Matinée, Midi, Après-midi, Dîner, Soirée, Coucher)
+  S.v=4;
+  const find=re=>S.routines.find(r=>re.test(r.name));
+  const mk=(emoji,name,time,steps)=>({id:uid(),emoji,name,time,steps:steps.map(([text,min,core,at])=>{ const s={id:uid(),text,min,core:!!core}; if(at) s.at=at; return s; })});
+  const reveil=find(/^(matin|r[ée]veil)$/i), apm=find(/apr[eè]s/i), soir=find(/^(soir|soir[ée]e)$/i);
+  const used=new Set([reveil,apm,soir].filter(Boolean));
+  const others=S.routines.filter(r=>!used.has(r));
+  const has=re=>S.routines.some(r=>re.test(r.name));
+  const R=reveil||mk('🌅','Réveil','07:00',[['Prendre ma température',2,true,'07:00'],['Me lever',1,true,'07:30'],['Boire un grand verre d\'eau',2,true],['Petit-déjeuner',15,true]]);
+  R.name='Réveil'; R.emoji='🌅'; if(R.time==='07:30') R.time='07:00';
+  const M=has(/^matin[ée]e$/i)?find(/^matin[ée]e$/i):mk('☕','Matinée','09:30',[['Une seule tâche importante (minuteur 25 min)',25],['Pause : bouger 5 minutes',5],['Boire de l\'eau',2,true]]);
+  const Mi=has(/^midi$/i)?find(/^midi$/i):mk('🍽️','Midi','12:30',[['Déjeuner posé, sans écran',20,true],['Marcher 5 minutes dehors',5]]);
+  const A=apm||mk('☀️','Après-midi','14:30',[['Une seule tâche importante (25 min max)',25],['Boire de l\'eau + petite collation',5,true],['Marcher ou m\'étirer 5 minutes',5]]);
+  A.steps=A.steps.filter(s=>!/^D[ée]jeuner pos/i.test(s.text)); if(A.time==='13:30') A.time='14:30';
+  const D=has(/^d[iî]ner$/i)?find(/^d[iî]ner$/i):mk('🍲','Dîner','19:30',[['Préparer et manger le dîner',30,true],['Ranger la cuisine (10 min)',10]]);
+  const So=soir||mk('🛋️','Soirée','20:30',[['Ranger 5 objets qui traînent',5],['Préparer le sac / les affaires de demain',10]]);
+  So.name='Soirée'; So.emoji='🛋️'; if(So.time==='21:30') So.time='20:30';
+  const moved=So.steps.filter(s=>/dents|[ée]cran|\blit\b/i.test(s.text)); So.steps=So.steps.filter(s=>!moved.includes(s));
+  const C=has(/^coucher$/i)?find(/^coucher$/i):mk('🌙','Coucher','22:00',[]);
+  if(moved.length) C.steps.push(...moved); else if(!C.steps.length) C.steps.push(...mk('','','',[['Brosser les dents',3,true],['Écran off, lumière douce',2],['Aller au lit',0,true,'22:30']]).steps);
+  S.routines=[R,M,Mi,A,D,So,C,...others.filter(r=>![M,Mi,D,C].includes(r))];
+}
+const save = () => { try{ localStorage.setItem('routine-tdah', JSON.stringify(S)); }catch(e){} };
+
+const done = id => !!(S.log[todayKey()]||{})[id];
+function setDone(id,v){
+  const k=todayKey(); S.log[k]=S.log[k]||{};
+  const was=!!S.log[k][id], old=S.points;
+  if(v&&!was) S.points+=10;
+  if(!v&&was) S.points=Math.max(0,S.points-10);
+  if(v) S.log[k][id]=true; else delete S.log[k][id];
+  save();
+  if(Math.floor(S.points/100)>Math.floor(old/100)) setTimeout(()=>pop('🆙'),600);
+}
+const visSteps = r => S.energy==='low' ? r.steps.filter(s=>s.core) : r.steps;
+const allSteps = () => S.routines.flatMap(visSteps);
+function progress(){
+  const all=allSteps(); const n=all.filter(s=>done(s.id)).length;
+  return {n,total:all.length,pct:all.length?Math.round(n/all.length*100):0};
+}
+function streak(){
+  let c=0; const d=new Date();
+  for(let i=0;i<365;i++){
+    const k=d.toLocaleDateString('sv');
+    const has=Object.keys(S.log[k]||{}).length>0;
+    if(has) c++; else if(i>0) break; // aujourd'hui sans rien ne casse pas la série
+    d.setDate(d.getDate()-1);
+  }
+  return c;
+}
+
+const MSGS=[
+  [0,'Une seule petite étape suffit pour démarrer. Laquelle ? 🌱'],
+  [1,'Tu as commencé, c\'est le plus dur ! 💪'],
+  [30,'Beau début, continue à ton rythme. ✨'],
+  [60,'Plus de la moitié ! Tu gères. 🚀'],
+  [100,'Tout est fait ! Fais-toi plaisir, tu l\'as mérité. 🎉'],
+];
+function pop(emoji){
+  const e=document.createElement('div'); e.className='pop'; e.textContent=emoji;
+  document.body.appendChild(e); setTimeout(()=>e.remove(),1200);
+}
+function beep(){
+  try{
+    const a=new (window.AudioContext||window.webkitAudioContext)();
+    [0,.25,.5].forEach(t=>{
+      const o=a.createOscillator(),g=a.createGain();
+      o.frequency.value=660;o.connect(g);g.connect(a.destination);
+      g.gain.setValueAtTime(.2,a.currentTime+t);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+t+.2);
+      o.start(a.currentTime+t);o.stop(a.currentTime+t+.22);
+    });
+  }catch(e){}
+  if(navigator.vibrate) navigator.vibrate([200,100,200]);
+}
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = s => String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+
+/* ---------- Header ---------- */
+function renderHeader(){
+  const h=new Date().getHours();
+  $('#hello').textContent=(h<12?'Bonjour':h<18?'Bon après-midi':'Bonsoir')+' 👋';
+  $('#date').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const st=streak();
+  $('#streak').textContent=st>0?`🔥 ${st} jour${st>1?'s':''} d'activité d'affilée`:'Chaque jour est un nouveau départ.';
+  $('#streak').textContent+=` · ⭐ ${S.points} pts (niv. ${Math.floor(S.points/100)+1})`;
+  $('#energyBtn').textContent=S.energy==='low'?'🪫 Énergie basse : essentiel seulement':'🔋 Énergie normale';
+  $('#energyBtn').classList.toggle('low',S.energy==='low');
+  const p=progress(); const r=32,C=2*Math.PI*r;
+  $('#ring').innerHTML=`<svg viewBox="0 0 76 76"><circle cx="38" cy="38" r="${r}" fill="none" stroke="var(--soft)" stroke-width="8"/><circle cx="38" cy="38" r="${r}" fill="none" stroke="var(--ok)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-p.pct/100)}"/></svg><b>${p.pct}%</b>`;
+  let m=MSGS[0][1]; for(const [t,x] of MSGS) if(p.pct>=t) m=x;
+  if(p.n===0) m=MSGS[0][1];
+  if(p.pct===100 && p.total>0 && S.reward) m+=' 🎁 Ta récompense : '+S.reward;
+  if(S.energy==='low') m='Journée à faible énergie : seul l\'essentiel compte aujourd\'hui. C\'est déjà bien. 💜 '+(p.pct===100?m:'');
+  $('#encourage').textContent=m;
+}
+
+/* ---------- Aujourd'hui ---------- */
+let routineOpen={}; // choix d'ouverture faits par l'utilisateur (id -> true/false)
+$('#tab-today').addEventListener('click',e=>{
+  const sm=e.target.closest('summary'); if(!sm) return;
+  const d=sm.parentElement; if(d.dataset.rid) routineOpen[d.dataset.rid]=!d.open;
+});
+function renderToday(){
+  const curR=currentRoutine(), hmNow=new Date().toTimeString().slice(0,5);
+  const nextR=[...S.routines].filter(r=>r.time&&r.time>hmNow).sort((a,b)=>a.time.localeCompare(b.time))[0];
+  $('#tab-today').innerHTML = tasksCard() + S.routines.map(r=>{
+    const vs=visSteps(r);
+    const n=vs.filter(s=>done(s.id)).length, t=vs.length;
+    const mins=vs.filter(s=>!done(s.id)).reduce((a,s)=>a+(+s.min||0),0);
+    // Seuls le moment en cours et le suivant sont ouverts ; les autres se déplient d'un clic
+    const open=routineOpen[r.id]!==undefined?routineOpen[r.id]:(r===curR||r===nextR);
+    return `<details class="card routine" data-rid="${r.id}" ${open?'open':''} style="--acc:var(--c${S.routines.indexOf(r)%4})">
+      <summary style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <h2>${esc(r.emoji)} ${esc(r.name)} ${r.time?`<span class="chip">${esc(r.time)}</span>`:''}${r===curR?' <span class="chip nowchip">maintenant</span>':''}</h2>
+        <span style="display:flex;gap:8px;align-items:center"><span class="chip">${n}/${t}${mins?` · ~${mins} min`:''}</span><span class="chev">▾</span></span>
+      </summary>
+      <div class="bar"><i style="width:${t?n/t*100:0}%"></i></div>
+      <div style="margin-top:8px">${vs.map(s=>`
+        <div class="step ${done(s.id)?'done':''}">
+          <label><input type="checkbox" data-id="${s.id}" ${done(s.id)?'checked':''}>
+          <span class="t">${esc(s.text)}</span></label>
+          ${s.at?`<span class="chip atchip" data-at="${s.at}">⏰ ${esc(s.at)}</span>`:''}
+          ${s.min?`<span class="chip">${s.min} min</span>`:''}
+        </div>`).join('')||'<p class="sub">Aucune étape. Ajoute-en dans l\'onglet Routines.</p>'}</div>
+    </details>`;
+  }).join('') || '<div class="card">Crée ta première routine dans l\'onglet ⚙️.</div>';
+  refreshDue();
+}
+// Colore les heures précises arrivées (sans tout redessiner, pour ne pas perdre ce que tu es en train de taper)
+function refreshDue(){
+  const hm=new Date().toTimeString().slice(0,5);
+  document.querySelectorAll('.atchip').forEach(c=>{
+    const st=c.closest('.step'), isDone=st&&st.classList.contains('done');
+    c.classList.toggle('duechip',!isDone && c.dataset.at<=hm);
+  });
+}
+/* ---------- Moments de la journée + planification légère ---------- */
+// plan:true = moments où le planning place des tâches (pas au réveil, au repas ni au coucher)
+const SLOTS=[
+  {id:'reveil',label:'🌅 Réveil',from:0,to:9,plan:false},
+  {id:'matinee',label:'☕ Matinée',from:9,to:12,plan:true},
+  {id:'midi',label:'🍽️ Midi',from:12,to:14,plan:false},
+  {id:'aprem',label:'☀️ Après-midi',from:14,to:18,plan:true},
+  {id:'diner',label:'🍲 Dîner',from:18,to:20,plan:false},
+  {id:'soiree',label:'🛋️ Soirée',from:20,to:22,plan:true},
+  {id:'coucher',label:'🌙 Coucher',from:22,to:24,plan:false},
+];
+const curSlot=()=>{ const h=new Date().getHours(); return SLOTS.find(s=>h>=s.from&&h<s.to).id; };
+// Un « plus tard » ou un créneau ne vaut que pour la journée : le lendemain tout revient à « à placer ».
+function slotOf(t){
+  const k=todayKey();
+  if(t.slot==='later' && t.laterDate===k) return 'later';
+  if(SLOTS.some(s=>s.id===t.slot) && t.planDate===k) return t.slot;
+  return 'today';
+}
+function currentRoutine(){
+  const now=new Date().toTimeString().slice(0,5); let cur=null;
+  [...S.routines].filter(r=>r.time).sort((a,b)=>a.time.localeCompare(b.time)).forEach(r=>{ if(r.time<=now) cur=r; });
+  return cur;
+}
+function routineLoad(slot){ // minutes de routine encore à faire dans ce créneau
+  return S.routines.filter(r=>{ const h=r.time?+r.time.slice(0,2):-1; return h>=slot.from&&h<slot.to; })
+    .reduce((a,r)=>a+visSteps(r).filter(s=>!done(s.id)).reduce((b,s)=>b+(+s.min||0),0),0);
+}
+let planNote='';
+function planDay(){
+  const k=todayKey(), h=new Date().getHours();
+  const open=S.tasks.filter(t=>!t.done && slotOf(t)!=='later')
+    .sort((a,b)=>(b.top?1:0)-(a.top?1:0)||String(a.date).localeCompare(String(b.date)));
+  if(!open.length){ planNote='Rien à planifier pour le moment. 😌'; return renderToday(); }
+  const base=S.energy==='low'?1:2; // 2 tâches max par moment (1 si énergie basse)
+  const caps=SLOTS.filter(s=>s.plan&&h<s.to-1).map(s=>({s,n:0,cap:Math.max(1,base-(routineLoad(s)>=30?1:0))}));
+  let placed=0,later=0;
+  for(const t of open){
+    const c=caps.find(c=>c.n<c.cap);
+    if(c){ t.slot=c.s.id; t.planDate=k; c.n++; placed++; }
+    else { t.slot='later'; t.laterDate=k; later++; }
+  }
+  planNote=`✨ ${placed} tâche${placed>1?'s':''} planifiée${placed>1?'s':''}`+(later?`, ${later} mise${later>1?'s':''} de côté pour plus tard (rien n'est perdu).`:'.')+' Une journée légère est une journée réussie.';
+  save(); renderToday();
+}
+function taskRow(t){
+  const k=todayKey(), sl=slotOf(t);
+  return `<div class="step ${t.done?'done':''} ${t.top&&!t.done?'prio':''}">
+    <label><input type="checkbox" data-task="${t.id}" ${t.done?'checked':''}><span class="t">${t.top?'⭐ ':''}${esc(t.text)}</span></label>
+    ${t.top&&!t.done?'<span class="chip prochip">Priorité</span>':''}
+    ${t.done?(t.min?`<span class="chip">${minLabel(t.min)}</span>`:''):`<button class="chip" data-tmin="${t.id}" style="border:0;min-height:32px;cursor:pointer" title="Changer la durée" aria-label="Changer la durée">${minLabel(t.min)}</button>`}
+    ${!t.done&&t.date<k&&sl==='today'?'<span class="chip">reporté</span>':''}
+    <button class="ghost" data-star="${t.id}" aria-label="Priorité">${t.top?'★':'☆'}</button>
+    ${t.done?'':`<button class="ghost" data-later="${t.id}" aria-label="${sl==='later'?'Remettre aujourd&#39;hui':'Plus tard'}" title="${sl==='later'?'Remettre aujourd&#39;hui':'Plus tard'}">${sl==='later'?'↩':'⏭'}</button>`}
+    <button class="ghost" data-rm="${t.id}" aria-label="Supprimer">✕</button></div>`;
+}
+function tasksCard(){
+  const k=todayKey(), cs=curSlot();
+  const vis=S.tasks.filter(t=>!t.done||t.doneOn===k).sort((a,b)=>(b.top?1:0)-(a.top?1:0)||(a.done?1:0)-(b.done?1:0));
+  const groups=[{id:'today',label:'📥 À placer'},...SLOTS];
+  let body=groups.map(g=>{
+    const l=vis.filter(t=>slotOf(t)===g.id); if(!l.length) return '';
+    return `<div class="slot ${g.id===cs?'now':''}"><div class="slothead">${g.label}${g.id===cs?' <span class="chip nowchip">maintenant</span>':''}</div>${l.map(taskRow).join('')}</div>`;
+  }).join('');
+  const later=vis.filter(t=>slotOf(t)==='later');
+  if(later.length) body+=`<details class="slot"><summary class="slothead">⏭️ Plus tard (${later.length}) · rien n'est perdu</summary>${later.map(taskRow).join('')}</details>`;
+  const openN=vis.filter(t=>!t.done&&slotOf(t)!=='later').length;
+  return `<div class="card routine" style="--acc:var(--main)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <h2>🎯 À faire aujourd'hui</h2><button id="planBtn" class="primary" style="min-height:40px;padding:8px 14px">🗓️ Planifier ma journée</button></div>
+    <p class="sub">☆ = priorité (3 max) · ⏭ = à faire plus tard. Le planning garde peu de tâches par moment pour ne pas te surcharger.</p>
+    ${planNote?`<div class="msg">${planNote}</div>`:''}
+    ${openN>6?'<div class="msg">Journée bien remplie : pense à décaler quelques tâches avec ⏭.</div>':''}
+    ${body}
+    <form id="taskForm" class="row" style="flex-wrap:nowrap;margin-top:12px"><input id="taskInput" placeholder="Ajouter une tâche…" autocomplete="off">
+      <select id="taskMin" aria-label="Durée" style="width:auto;flex:none">${TASK_MINS.map(m=>`<option value="${m}" ${m===newMin?'selected':''}>${minLabel(m)}</option>`).join('')}</select>
+      <button class="primary">+</button></form></div>`;
+}
+const TASK_MINS=[0,5,10,15,30,45,60,90];
+const minLabel=m=>m?(m>=60?`${Math.floor(m/60)} h${m%60?String(m%60).padStart(2,'0'):''}`:`${m} min`):'⏱ durée ?';
+let newMin=0;
+function addTask(text){ S.tasks.push({id:uid(),text,done:false,top:false,date:todayKey(),doneOn:null,slot:'today',min:newMin||0}); save(); }
+$('#tab-today').addEventListener('change',e=>{ if(e.target.id==='taskMin') newMin=+e.target.value; });
+$('#tab-today').addEventListener('submit',e=>{
+  e.preventDefault(); const v=$('#taskInput').value.trim(); if(!v) return; newMin=+$('#taskMin').value;
+  if(S.noAssist){ addTask(v); renderToday(); setTimeout(()=>$('#taskInput').focus(),0); }
+  else { $('#taskInput').value=''; askPriority(v); }
+});
+
+/* ---------- Assistant de priorité ---------- */
+const QS=['Y a-t-il une échéance aujourd\'hui ou demain ?',
+  'Y a-t-il une vraie conséquence si je ne le fais pas (argent, santé, quelqu\'un qui attend) ?',
+  'Est-ce que ça compte vraiment pour moi ?'];
+let askText='', askAns=[null,null,null], askCb=null, askCancel=null;
+function askPriority(text,cb,cancelCb){ askText=text; askCb=cb||null; askCancel=cancelCb||null; askAns=[null,null,null]; renderAssist(); $('#assist').classList.remove('hidden'); }
+function closeAssist(){ $('#assist').classList.add('hidden'); setTimeout(()=>{ const i=$('#tab-dump').classList.contains('hidden')?$('#taskInput'):$('#dumpInput'); if(i) i.focus(); },0); }
+function cancelAssist(){ const f=askCancel; askCb=null; askCancel=null; closeAssist(); if(f) f(); }
+function recoOf(){
+  const [q1,q2,q3]=askAns; if(askAns.some(x=>x===null)) return null;
+  return (q1||q2)?'top':(q3?'today':'later');
+}
+function renderAssist(){
+  const reco=recoOf(), topFull=S.tasks.filter(t=>t.top&&!t.done).length>=3;
+  const msg={
+    top:topFull?'⭐ Ça ressemble à une priorité, mais tu en as déjà 3. Garde-la normale pour aujourd\'hui ou décale une autre.':'⭐ Ça ressemble à une <b>priorité</b>. Fais-la en premier.',
+    today:'💜 Importante mais pas urgente : garde-la pour aujourd\'hui sans pression, ou planifie-la plus tard.',
+    later:'⏭ Ça peut attendre : mets-la plus tard. Rien n\'est perdu, elle reviendra demain.'
+  }[reco];
+  const pickClass=k=>reco===k||(reco==='top'&&topFull&&k==='today')?'primary':'';
+  $('#assist').innerHTML=`<div class="card assist"><h2>Est-ce une priorité ?</h2>
+    <div class="task">${esc(askText)}</div>
+    ${QS.map((q,i)=>`<div class="qrow"><p>${i+1}. ${q}</p><div class="row">
+      <button data-q="${i}" data-a="1" class="${askAns[i]===true?'on':''}">Oui</button>
+      <button data-q="${i}" data-a="0" class="${askAns[i]===false?'on':''}">Non</button></div></div>`).join('')}
+    ${reco?`<div class="reco ${reco}">${msg}</div>`:'<p class="sub">Réponds aux 3 questions, ou choisis directement ci-dessous.</p>'}
+    <div class="choices">
+      <button data-choice="top" class="${pickClass('top')}" ${topFull?'disabled style="opacity:.45"':''}>⭐ Priorité</button>
+      <button data-choice="today" class="${pickClass('today')}">📥 Aujourd'hui, normale</button>
+      <button data-choice="later" class="${pickClass('later')}">⏭ Plus tard</button>
+      <button class="ghost" data-choice="cancel">${askCancel?'📝 Juste garder dans le Vide-tête':'Annuler'}</button>
+      <button class="ghost" data-choice="never">Ne plus me poser ces questions</button>
+    </div></div>`;
+}
+$('#assist').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.q!==undefined){ askAns[+b.dataset.q]=b.dataset.a==='1'; renderAssist(); return; }
+  const c=b.dataset.choice; if(!c) return;
+  if(c==='cancel'){ cancelAssist(); return; }
+  if(c==='never'){ S.noAssist=true; save(); const t=$('#assistToggle'); if(t) t.checked=false; }
+  addTask(askText); const t=S.tasks[S.tasks.length-1];
+  if(c==='top') t.top=true;
+  if(c==='later'){ t.slot='later'; t.laterDate=todayKey(); }
+  save(); closeAssist(); renderToday();
+  askCancel=null; if(askCb){ const f=askCb; askCb=null; f(); }
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && !$('#assist').classList.contains('hidden')) cancelAssist(); });
+$('#assistToggle').checked=!S.noAssist;
+$('#assistToggle').addEventListener('change',e=>{ S.noAssist=!e.target.checked; save(); });
+$('#tab-today').addEventListener('click',e=>{
+  if(e.target.id==='planBtn'){ planDay(); return; }
+  if(e.target.dataset.tmin){ const t=S.tasks.find(x=>x.id===e.target.dataset.tmin);
+    t.min=TASK_MINS[(TASK_MINS.indexOf(t.min||0)+1)%TASK_MINS.length]; save(); renderToday(); return; }
+  if(e.target.dataset.later){
+    const t=S.tasks.find(x=>x.id===e.target.dataset.later); planNote='';
+    if(slotOf(t)==='later'){ t.slot='today'; t.laterDate=null; } else { t.slot='later'; t.laterDate=todayKey(); }
+    save(); renderToday(); return;
+  }
+  const star=e.target.dataset.star, rm=e.target.dataset.rm;
+  if(star){ const t=S.tasks.find(x=>x.id===star);
+    if(!t.top && S.tasks.filter(x=>x.top&&!x.done).length>=3){ alert('3 priorités maximum : choisis l\'essentiel. 🙂'); return; }
+    t.top=!t.top; save(); renderToday(); }
+  if(rm){ S.tasks=S.tasks.filter(x=>x.id!==rm); setDone('t_'+rm,false); save(); renderAll(); }
+});
+$('#tab-today').addEventListener('change',e=>{
+  if(e.target.dataset.task){
+    const t=S.tasks.find(x=>x.id===e.target.dataset.task); t.done=e.target.checked; t.doneOn=t.done?todayKey():null;
+    if(t.done) t.top=false;
+    setDone('t_'+t.id,t.done); if(t.done) pop('✅'); renderAll(); return;
+  }
+  if(e.target.dataset.id){
+    setDone(e.target.dataset.id,e.target.checked);
+    if(e.target.checked){ pop(['⭐','🎉','💪','✨','🌟'][Math.floor(Math.random()*5)]); }
+    if(progress().pct===100 && e.target.checked){ setTimeout(()=>pop('🏆'),400); }
+    renderAll();
+  }
+});
+
+/* ---------- Focus ---------- */
+let focusTimer=null, focusLeft=0, focusRunning=false, focusFor=null, focusTotal=1, wl=null;
+function nextStep(){
+  const sk=S.skipped[todayKey()]||{};
+  const todo=allSteps().filter(s=>!done(s.id));
+  const hm=new Date().toTimeString().slice(0,5);
+  const due=todo.filter(s=>s.at&&s.at<=hm&&!sk[s.id]).sort((a,b)=>a.at.localeCompare(b.at));
+  if(due.length) return due[0]; // une étape à heure précise arrivée passe en premier
+  return todo.find(s=>!sk[s.id]) || todo[0] || null;
+}
+function renderFocus(){
+  const s=nextStep(); const c=$('#focusCard');
+  if(!s){ c.innerHTML='<div class="big">🎉 Tout est fait !</div><p class="sub">Rien à faire pour le moment. Profite.</p>'; return; }
+  if(focusFor!==s.id){ stopFocus(); focusFor=s.id; focusLeft=(+s.min||5)*60; focusTotal=focusLeft; }
+  c.innerHTML=`<div class="sub">Une seule chose à la fois</div>
+    <div class="big">${esc(s.text)}</div>
+    <div class="timer" id="fTime">${fmt(focusLeft)}</div>
+    <div class="bar" style="margin:0 0 16px"><i id="fBar" style="width:${Math.max(0,focusLeft)/focusTotal*100}%"></i></div>
+    <div class="row">
+      <button class="primary" id="fGo">${focusRunning?'⏸ Pause':'▶ Démarrer'}</button>
+      <button class="ok" id="fDone">✓ Fait</button>
+      <button id="fLater">Plus tard ↷</button>
+      <button id="fSplit">✂️ Trop gros ?</button>
+    </div>
+    <p class="sub">Pas envie ? Fais juste 2 minutes : souvent, le plus dur est de commencer.</p>`;
+  $('#fGo').onclick=()=>{ focusRunning?stopFocus():startFocus(); renderFocus(); };
+  $('#fSplit').onclick=()=>{
+    const t=prompt('Découpe en mini-étapes (séparées par « ; ») :\nex : sortir le linge ; trier ; lancer la machine'); if(!t) return;
+    const parts=t.split(';').map(x=>x.trim()).filter(Boolean); if(!parts.length) return;
+    for(const r of S.routines){ const i=r.steps.findIndex(x=>x.id===s.id);
+      if(i>=0){ r.steps.splice(i,1,...parts.map(p=>({id:uid(),text:p,min:5,core:s.core}))); break; } }
+    stopFocus(); focusFor=null; save(); renderAll();
+  };
+  $('#fDone').onclick=()=>{ stopFocus(); setDone(s.id,true); focusFor=null; pop('⭐'); renderAll(); };
+  $('#fLater').onclick=()=>{ stopFocus(); const k=todayKey(); S.skipped[k]=S.skipped[k]||{}; S.skipped[k][s.id]=true; save(); focusFor=null; renderFocus(); };
+}
+function startFocus(){
+  focusRunning=true;
+  try{ navigator.wakeLock && navigator.wakeLock.request('screen').then(l=>wl=l).catch(()=>{}); }catch(e){}
+  focusTimer=setInterval(()=>{
+    focusLeft--; const el=$('#fTime'); if(el) el.textContent=fmt(Math.max(0,focusLeft));
+    const fb=$('#fBar'); if(fb) fb.style.width=Math.max(0,focusLeft)/focusTotal*100+'%';
+    document.title=fmt(Math.max(0,focusLeft))+' · Routine';
+    if(focusLeft<=0){ stopFocus(); beep(); notify('Temps écoulé !','Étape terminée ? Coche-la.'); renderFocus(); }
+  },1000);
+}
+function stopFocus(){ clearInterval(focusTimer); focusRunning=false; try{ wl&&wl.release(); wl=null; }catch(e){} document.title='Ma Routine TDAH'; }
+
+let freeT=null,freeLeft=0;
+document.querySelectorAll('[data-free]').forEach(b=>b.onclick=()=>{
+  clearInterval(freeT); freeLeft=+b.dataset.free*60; $('#freeTimer').textContent=fmt(freeLeft);
+  freeT=setInterval(()=>{
+    freeLeft--; $('#freeTimer').textContent=fmt(Math.max(0,freeLeft));
+    if(freeLeft<=0){ clearInterval(freeT); beep(); notify('Minuteur terminé','Pause ou étape suivante ?'); }
+  },1000);
+});
+$('#freeStop').onclick=()=>{ clearInterval(freeT); $('#freeTimer').textContent='25:00'; };
+
+/* ---------- Vide-tête ---------- */
+function renderDump(){
+  $('#dumpList').innerHTML=S.dump.map((d,i)=>`
+    <div class="step"><span class="t" style="flex:1">${esc(d)}</span>
+    <button class="ghost" data-task="${i}">→ tâche</button>
+    <button class="ghost" data-del="${i}" aria-label="Supprimer">✕</button></div>`).join('')||'<p class="sub">Vide. Ta tête respire. 😌</p>';
+}
+$('#dumpForm').onsubmit=e=>{
+  e.preventDefault(); const v=$('#dumpInput').value.trim(); if(!v)return; $('#dumpInput').value='';
+  const keep=()=>{ S.dump.unshift(v); save(); renderDump(); };
+  if(S.noAssist) keep();
+  else askPriority(v,()=>{ renderDump(); },keep); // choix = devient une tâche ; sinon reste dans le Vide-tête
+};
+$('#dumpList').onclick=e=>{
+  if(e.target.dataset.task!==undefined){ const txt=S.dump[+e.target.dataset.task];
+    const finish=()=>{ const j=S.dump.indexOf(txt); if(j>=0) S.dump.splice(j,1); save(); renderDump(); renderToday(); };
+    if(S.noAssist){ addTask(txt); finish(); } else askPriority(txt,finish);
+    return; }
+  const i=e.target.dataset.del; if(i!==undefined){ S.dump.splice(+i,1); save(); renderDump(); } };
+
+/* ---------- Édition ---------- */
+const TIPS=`<div class="card"><h2>💡 Comment choisir quoi mettre</h2>
+  <ol class="tips">
+    <li><b>3 à 5 étapes</b> par routine, c'est assez.</li>
+    <li><b>Le test :</b> « si je saute cette étape, ma journée est-elle vraiment pire ? » Si non, enlève-la.</li>
+    <li><b>Une étape = une action simple</b>, qui commence par un verbe et dure moins de 15 minutes.</li>
+    <li><b>Commence petit :</b> ajoute une étape à la fois, seulement quand la routine tient depuis une semaine.</li>
+    <li><b>⏰ Heure précise</b> : seulement pour ce qui a une vraie heure (température, lever, coucher…). À cette heure, tu reçois une notification et l'étape passe en premier dans Focus.</li>
+    <li><b>« Essentiel »</b> : garde ça pour ce qui compte vraiment les jours de faible énergie.</li>
+  </ol>
+  <p class="sub">Sous chaque routine, une jauge te dit si elle est légère, chargée ou trop chargée.</p></div>`;
+function loadBox(r){
+  const n=r.steps.length, mins=r.steps.reduce((a,s)=>a+(+s.min||0),0), core=r.steps.filter(s=>s.core).length;
+  let cls,msg;
+  if(n<=5&&mins<=60){ cls='ok'; msg='✅ Légère : parfait, tu peux la tenir.'; }
+  else if(n<=7&&mins<=90){ cls='warn'; msg='🟠 Un peu chargée. Pour chaque étape : « si je la saute, ma journée est-elle vraiment pire ? » Si non, enlève-la.'; }
+  else { cls='bad'; msg='🔴 Trop chargée : tu risques de tout lâcher. Garde 3 à 5 étapes. Mieux vaut une petite routine que tu tiens.'; }
+  const longs=r.steps.filter(s=>(+s.min||0)>30).slice(0,2).map(s=>`<div>✂️ « ${esc(s.text)} » dure ${s.min} min : découpe-la en petites étapes.</div>`).join('');
+  return `<div class="load ${cls}"><b>${n} étape${n>1?'s':''} · ~${mins} min</b> · ${core} essentielle${core>1?'s':''}<div>${msg}</div>${longs}</div>`;
+}
+function renderEdit(){
+  $('#editList').innerHTML=TIPS+S.routines.map((r,ri)=>`
+    <div class="card" data-r="${ri}">
+      <div class="row" style="flex-wrap:nowrap;justify-content:flex-start">
+        <input style="width:70px" data-f="emoji" value="${esc(r.emoji)}" aria-label="Emoji">
+        <input data-f="name" value="${esc(r.name)}" aria-label="Nom">
+        <input type="time" style="width:130px" data-f="time" value="${r.time||''}" aria-label="Heure de rappel">
+      </div>
+      ${loadBox(r)}
+      ${r.steps.map((s,si)=>`
+        <div class="edit-step" data-s="${si}">
+          <input data-f="text" value="${esc(s.text)}" aria-label="Étape">
+          <input type="time" data-f="at" value="${s.at||''}" aria-label="Heure précise (optionnel)" title="Heure précise (optionnel)" style="width:125px">
+          <input type="number" min="0" max="180" data-f="min" value="${s.min||0}" aria-label="Minutes">
+          <label class="chip" title="Gardée en mode énergie basse"><input type="checkbox" data-f="core" ${s.core?'checked':''} style="width:auto"> essentiel</label>
+          <button class="ghost" data-act="up">↑</button>
+          <button class="ghost" data-act="down">↓</button>
+          <button class="ghost" data-act="del">✕</button>
+        </div>`).join('')}
+      <div class="row" style="justify-content:space-between;margin-top:8px">
+        <button data-act="addstep">➕ Étape</button>
+        <button class="ghost" data-act="delr">Supprimer la routine</button>
+      </div>
+    </div>`).join('');
+}
+$('#editList').addEventListener('input',e=>{
+  const card=e.target.closest('[data-r]'); if(!card||!e.target.dataset.f) return;
+  const r=S.routines[+card.dataset.r], st=e.target.closest('[data-s]');
+  if(st){ const s=r.steps[+st.dataset.s], f=e.target.dataset.f;
+    s[f]= f==='min'?+e.target.value : f==='core'?e.target.checked : e.target.value; }
+  else r[e.target.dataset.f]=e.target.value;
+  save();
+  const lb=card.querySelector('.load'); if(lb) lb.outerHTML=loadBox(r);
+});
+$('#editList').addEventListener('click',e=>{
+  const act=e.target.dataset.act; if(!act) return;
+  const card=e.target.closest('[data-r]'), r=S.routines[+card.dataset.r];
+  const st=e.target.closest('[data-s]'), i=st?+st.dataset.s:-1;
+  if(act==='addstep') r.steps.push({id:uid(),text:'Nouvelle étape',min:5});
+  if(act==='del') r.steps.splice(i,1);
+  if(act==='up'&&i>0) [r.steps[i-1],r.steps[i]]=[r.steps[i],r.steps[i-1]];
+  if(act==='down'&&i<r.steps.length-1) [r.steps[i+1],r.steps[i]]=[r.steps[i],r.steps[i+1]];
+  if(act==='delr'&&confirm('Supprimer cette routine ?')) S.routines.splice(+card.dataset.r,1);
+  save(); renderEdit(); renderAll(true);
+});
+$('#addRoutine').onclick=()=>{ S.routines.push({id:uid(),emoji:'⭐',name:'Nouvelle routine',time:'',steps:[]}); save(); renderEdit(); renderAll(true); };
+$('#resetAll').onclick=()=>{ if(confirm('Tout effacer et revenir aux routines par défaut ?')){ localStorage.removeItem('routine-tdah'); location.reload(); } };
+
+/* ---------- Notifications ---------- */
+function notify(title,body){
+  if('Notification' in window && Notification.permission==='granted'){ try{ new Notification(title,{body}); }catch(e){} }
+}
+$('#notifBtn').onclick=async()=>{
+  if(!('Notification' in window)) return alert('Notifications non supportées ici.');
+  const p=await Notification.requestPermission();
+  $('#notifBtn').textContent = p==='granted'?'✓ Notifications activées':'Refusées par le navigateur';
+};
+setInterval(()=>{
+  const now=new Date().toTimeString().slice(0,5), k=todayKey();
+  S.routines.forEach(r=>{
+    const key='n_'+r.id+k;
+    if(r.time===now && !sessionStorage.getItem(key)){
+      sessionStorage.setItem(key,1); notify(`${r.emoji} C'est l'heure : ${r.name}`,'Commence par la première étape, juste 2 minutes.'); beep();
+    }
+    r.steps.forEach(s=>{
+      const sk='n_'+s.id+k;
+      if(s.at===now && !done(s.id) && !sessionStorage.getItem(sk)){
+        sessionStorage.setItem(sk,1); notify('⏰ '+s.text,'C\'est l\'heure précise.'); beep();
+      }
+    });
+  });
+  refreshDue();
+},20000);
+
+/* ---------- Menu ☰ ---------- */
+$('#menuBtn').onclick=()=>$('#nav').classList.add('open');
+$('#nav').addEventListener('click',e=>{ if(e.target.id==='nav') $('#nav').classList.remove('open'); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') $('#nav').classList.remove('open'); });
+
+/* ---------- Lien Therapy ---------- */
+$('#therapyBtn').onclick=()=>{ if(S.therapyUrl) window.open(S.therapyUrl,'_blank','noopener'); else alert('Ajoute l\'adresse dans ⚙️ Routines.'); };
+$('#therapyUrl').value=S.therapyUrl||'';
+$('#therapyUrl').addEventListener('input',e=>{ S.therapyUrl=e.target.value.trim(); save(); });
+
+/* ---------- Énergie ---------- */
+$('#energyBtn').onclick=()=>{ S.energy=S.energy==='low'?'normal':'low'; save(); focusFor=null; renderAll(); };
+
+/* ---------- Bouton « débordé·e » ---------- */
+let breathT=null;
+$('#panicBtn').onclick=()=>{
+  const s=nextStep();
+  const tiny=s?`Une seule mini-action, rien d'autre : <b>${esc(s.text)}</b> (2 minutes suffisent).`
+    :'Boire un verre d\'eau, puis desserrer les épaules et la mâchoire.';
+  const p=$('#panic');
+  p.innerHTML=`<div><h1>Stop. Respire. 💜</h1>
+    <p>Tu n'as pas à tout faire maintenant. Rien n'est urgent à cette seconde.</p>
+    <div class="breath"></div><h2 id="breathTxt">Inspire…</h2>
+    <p class="msg">${tiny}</p>
+    <div class="row"><button class="primary" id="pOk">Je me sens mieux</button></div></div>`;
+  p.classList.remove('hidden');
+  const ph=[['Inspire… (4 s)',4000],['Retiens… (3 s)',3000],['Expire doucement… (6 s)',6000]]; let i=0;
+  const step=()=>{ const t=$('#breathTxt'); if(!t) return; t.textContent=ph[i][0]; breathT=setTimeout(step,ph[i][1]); i=(i+1)%3; };
+  step();
+  $('#pOk').onclick=()=>{ clearTimeout(breathT); p.classList.add('hidden'); };
+};
+
+/* ---------- Bilan ---------- */
+const REWARD_IDEAS=['☕ Une boisson chaude, posée','🎧 15 min de ma musique préférée','📺 Un épisode, sans culpabilité','🛁 Une douche ou un bain long','🚶 Une balade dehors','🎮 20 min de jeu, sans culpabilité','🧸 Un câlin ou un moment avec mon animal','🛋️ 10 min de calme sous un plaid','📞 Appeler quelqu\'un que j\'aime','🛍️ Un petit achat prévu à l\'avance'];
+function renderStats(){
+  const days=[]; const d=new Date();
+  for(let i=6;i>=0;i--){ const x=new Date(); x.setDate(d.getDate()-i); const k=x.toLocaleDateString('sv');
+    days.push({k,l:x.toLocaleDateString('fr-FR',{weekday:'short'}).slice(0,3),n:Object.keys(S.log[k]||{}).length}); }
+  const max=Math.max(1,...days.map(x=>x.n)), total=days.reduce((a,x)=>a+x.n,0), act=days.filter(x=>x.n).length;
+  const lvl=Math.floor(S.points/100)+1, pr=S.points%100;
+  $('#tab-stats').innerHTML=`
+    <div class="card"><h2>📊 Cette semaine</h2>
+      <p class="sub">${total} étape${total>1?'s':''} faite${total>1?'s':''} · actif ${act} jour${act>1?'s':''} sur 7. Chaque barre compte, même les petites.</p>
+      <div class="wk">${days.map(x=>`<div><i style="height:${x.n/max*90}px"></i>${x.n}<br>${x.l}</div>`).join('')}</div></div>
+    <div class="card"><h2>⭐ Niveau ${lvl}</h2>
+      <div class="bar"><i style="width:${pr}%"></i></div>
+      <p class="sub">${S.points} points · encore ${100-pr} pour le niveau suivant (10 points par étape ou tâche).</p>
+      <h2 style="margin-top:14px">🎁 Ma récompense du jour</h2>
+      <p class="sub">Choisis-la d'avance : elle s'affiche quand tout est fait.</p>
+      <input id="rewardInput" value="${esc(S.reward)}" placeholder="Choisis une idée ci-dessous ou écris la tienne">
+      <p class="sub" style="margin-top:10px">💡 Une bonne récompense est <b>petite</b>, <b>agréable tout de suite</b> et <b>sans culpabilité</b>. Touche une idée pour la choisir :</p>
+      <div class="row ideas" style="justify-content:flex-start">${REWARD_IDEAS.map((t,i)=>`<button data-idea="${i}">${t}</button>`).join('')}</div></div>
+    <div class="card"><h2>💾 Sauvegarde</h2>
+      <p class="sub">Les données restent dans ce navigateur. Exporte-les pour les garder en sécurité ou les copier sur un autre appareil.</p>
+      <div class="row" style="justify-content:flex-start"><button id="exportBtn">Exporter</button>
+      <button id="importBtn">Importer</button><input type="file" id="importFile" accept="application/json" class="hidden"></div></div>`;
+}
+$('#tab-stats').addEventListener('click',e=>{
+  if(e.target.dataset.idea!==undefined){ S.reward=REWARD_IDEAS[+e.target.dataset.idea]; save(); renderStats(); return; }
+  if(e.target.id==='exportBtn'){
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));
+    a.download='routine-tdah-'+todayKey()+'.json'; a.click();
+  }
+  if(e.target.id==='importBtn') $('#importFile').click();
+});
+$('#tab-stats').addEventListener('input',e=>{ if(e.target.id==='rewardInput'){ S.reward=e.target.value; save(); } });
+$('#tab-stats').addEventListener('change',e=>{
+  if(e.target.id!=='importFile'||!e.target.files[0]) return;
+  const fr=new FileReader();
+  fr.onload=()=>{ try{ const d=JSON.parse(fr.result); if(!d.routines) throw 0;
+    if(confirm('Remplacer tes données actuelles par ce fichier ?')){ localStorage.setItem('routine-tdah',JSON.stringify(d)); location.reload(); } }
+    catch(x){ alert('Fichier invalide.'); } };
+  fr.readAsText(e.target.files[0]);
+});
+
+/* ---------- Ménage & déménagement ---------- */
+const ROOM_TYPES={
+  chambre:{emoji:'🛏️',name:'Chambre',tasks:[['Faire le lit','d',2],['Ramasser ce qui traîne au sol','w',3],['Changer les draps','b',10],['Aspirateur / sol','b',10],['Dépoussiérer','m',10]]},
+  sdb:{emoji:'🚿',name:'Salle de bain',tasks:[['Lavabo + miroir','w',5],['Douche / baignoire','w',10],['Sol','b',5],['Trier les produits périmés','m',10]]},
+  wc:{emoji:'🚽',name:'WC',tasks:[['Cuvette + lunette','w',5],['Sol','b',3]]},
+  cuisine:{emoji:'🍳',name:'Cuisine',tasks:[['Vaisselle / lave-vaisselle','d',5],['Plan de travail','d',2],['Sortir la poubelle','w',3],['Évier + plaques','w',10],['Frigo : jeter ce qui est périmé','b',10],['Sol','w',10],['Four / micro-ondes','m',15]]},
+  salon:{emoji:'🛋️',name:'Salon / séjour',tasks:[['Ranger 5 objets','d',2],['Aspirateur / sol','b',10],['Dépoussiérer','b',8],['Remettre plaids et coussins en place','w',2]]},
+  bureau:{emoji:'💻',name:'Bureau',tasks:[['Bureau dégagé','w',2],['Trier les papiers','b',10],['Dépoussiérer','m',5]]},
+  entree:{emoji:'🚪',name:'Entrée / couloir',tasks:[['Chaussures et manteaux rangés','w',3],['Trier le courrier','w',5],['Sol','b',5]]},
+  linge:{emoji:'🧺',name:'Buanderie / linge',tasks:[['Lancer une lessive','w',5],['Étendre / plier','w',10],['Ranger le linge propre','w',10]]},
+  ext:{emoji:'🌿',name:'Balcon / extérieur',tasks:[['Arroser les plantes','w',3],['Balayer','m',10]]},
+  cave:{emoji:'📦',name:'Cave / cellier',tasks:[['Vérifier humidité et mauvaises odeurs','m',3],['Balayer et dépoussiérer','m',10],['Trier un carton ou une étagère','m',10]]},
+  garage:{emoji:'🚗',name:'Garage',tasks:[['Sortir les poubelles / cartons','m',5],['Balayer le sol','m',10],['Ranger outils et affaires qui traînent','m',10]]},
+};
+const FREQ={d:{label:'tous les jours',n:1},o:{label:'un jour sur deux',n:2},t:{label:'tous les 3 jours',n:3},w:{label:'chaque semaine',n:7},b:{label:'toutes les 2 semaines',n:14},m:{label:'chaque mois',n:30}};
+const MOVE_STEPS={
+  default:['Trier : garder / donner / jeter','Emballer','Étiqueter les cartons (pièce + contenu)','Nettoyer à fond'],
+  cuisine:['Trier : garder / donner / jeter','Vider et dégivrer le frigo','Emballer','Étiqueter les cartons (pièce + contenu)','Nettoyer à fond'],
+  wc:['Trier : garder / jeter','Nettoyer à fond'],
+  ext:['Ranger et emballer','Nettoyer'],
+  cave:['Trier : garder / donner / jeter / déchetterie','Emballer','Étiqueter les cartons','Balayer'],
+  garage:['Trier : garder / donner / jeter / déchetterie','Évacuer encombrants et produits dangereux (déchetterie)','Emballer outils et affaires','Étiqueter les cartons','Balayer'],
+};
+const MOVE_ADMIN=['Prévenir le propriétaire / donner le préavis','Électricité et gaz : transférer ou résilier','Internet / box : transférer ou résilier','Assurance habitation','Changement d\'adresse (poste, banque, impôts, mutuelle)','Prévenir médecin, pharmacie et travail','Préparer un carton « premiers jours » (draps, trousse de toilette, chargeurs)','État des lieux et remise des clés'];
+let homeEditing=false, homeDraft=null, homeOpen={};
+const daysSince=iso=>iso?Math.floor((new Date(todayKey())-new Date(iso))/864e5):Infinity;
+const agoTxt=iso=>{ const d=daysSince(iso); return d===Infinity?'jamais fait':d===0?'fait aujourd\'hui':d===1?'fait hier':`fait il y a ${d} j`; };
+function generateHome(counts){
+  const rooms=[];
+  for(const [k,t] of Object.entries(ROOM_TYPES)){
+    const n=counts[k]||0;
+    for(let i=1;i<=n;i++) rooms.push({id:uid(),type:k,emoji:t.emoji,name:n>1?`${t.name} ${i}`:t.name,
+      tasks:t.tasks.map(([text,f,min])=>({id:uid(),text,f,min}))});
+  }
+  return {rooms,last:{},prev:{},pick:null,moving:false,mv:{}};
+}
+function countsFromHome(){
+  const c={chambre:1,sdb:1,wc:1,cuisine:1,salon:1,bureau:0,entree:1,linge:0,ext:0,cave:0,garage:0};
+  if(S.home){ Object.keys(c).forEach(k=>c[k]=0); S.home.rooms.forEach(r=>{ if(c[r.type]!==undefined) c[r.type]++; }); }
+  return c;
+}
+function findTask(id){ for(const room of S.home.rooms){ const t=room.tasks.find(x=>x.id===id); if(t) return {t,room}; } return null; }
+const weekMin=()=>S.home.rooms.reduce((a,r)=>a+r.tasks.reduce((b,t)=>b+(+t.min||0)*7/FREQ[t.f].n,0),0);
+// Budget du jour : s'adapte au nombre de pièces (plus de pièces = un peu plus par jour, jamais beaucoup)
+function dayBudget(){ if(S.energy==='low') return 10; return Math.min(25,Math.max(15,Math.ceil(weekMin()/6))); }
+const tooBig=()=>weekMin()>dayBudget()*7; // logement trop grand pour tout faire à ce rythme
+function dueTasks(){
+  const out=[];
+  S.home.rooms.forEach((room,ri)=>room.tasks.forEach((t,ti)=>{
+    const ds=daysSince(S.home.last[t.id]), n=FREQ[t.f].n;
+    if(ds>=n) out.push({t,room,score:(ds===Infinity?2:ds/n),ord:ri*100+ti});
+  }));
+  return out.sort((a,b)=>b.score-a.score||a.ord-b.ord);
+}
+function pickToday(){ // la liste du jour est figée : cocher ne fait pas apparaître de nouvelles tâches
+  const H=S.home, k=todayKey();
+  if(H.pick && H.pick.date===k){ H.pick.ids=H.pick.ids.filter(findTask); return; }
+  const budget=dayBudget(), max=S.energy==='low'?3:6; let used=0; const ids=[];
+  for(const x of dueTasks()){ if(ids.length>=max) break; if(ids.length&&used+x.t.min>budget) continue; ids.push(x.t.id); used+=x.t.min; }
+  H.pick={date:k,ids}; save();
+}
+function pickMore(){ const H=S.home, x=dueTasks().find(d=>!H.pick.ids.includes(d.t.id)); if(x){ H.pick.ids.push(x.t.id); save(); } }
+function setupHtml(){
+  const d=homeDraft||(homeDraft=countsFromHome()), total=Object.values(d).reduce((a,b)=>a+b,0);
+  return `<div class="card"><h2>🏠 Ma maison</h2>
+    <p class="sub">Dis-moi quelles pièces tu as : je crée un plan de ménage léger, adapté à ton logement. Tu pourras le refaire si tu déménages.</p>
+    ${Object.entries(ROOM_TYPES).map(([k,t])=>`<div class="stepper"><span>${t.emoji} ${t.name}</span>
+      <span class="ctl"><button data-step="${k}" data-d="-1" aria-label="Moins">−</button><b>${d[k]||0}</b><button data-step="${k}" data-d="1" aria-label="Plus">+</button></span></div>`).join('')}
+    <p class="sub" style="margin-top:10px">${total} pièce${total>1?'s':''} au total.</p>
+    <div class="row" style="justify-content:flex-start"><button class="primary" data-act="homeCreate" ${total?'':'disabled style="opacity:.5"'}>✨ Créer mon plan</button>${S.home?'<button data-act="homeCancel">Annuler</button>':''}</div></div>`;
+}
+const HOME_MINS=[2,3,5,8,10,15,20,30,45,60];
+const nextMin=m=>HOME_MINS.find(x=>x>(+m||0))||HOME_MINS[0];
+const minBtn=(attr,id,m)=>`<button class="chip" data-${attr}="${id}" title="Changer la durée" aria-label="Changer la durée" style="border:0;min-height:32px;cursor:pointer">${m} min ✎</button>`;
+function cleanHtml(){
+  const H=S.home, k=todayKey(); pickToday();
+  const items=H.pick.ids.map(findTask).filter(Boolean), undone=items.filter(x=>H.last[x.t.id]!==k);
+  const mins=undone.reduce((a,x)=>a+(+x.t.min||0),0), more=dueTasks().filter(d=>!H.pick.ids.includes(d.t.id)).length;
+  const row=x=>{ const dn=H.last[x.t.id]===k; return `<div class="step ${dn?'done':''}" style="--acc:var(--c2)"><label><input type="checkbox" data-ht="${x.t.id}" ${dn?'checked':''}>
+    <span class="t">${x.room.emoji} ${esc(x.t.text)} <span class="sub">· ${esc(x.room.name)}</span></span></label>${minBtn('hmin',x.t.id,x.t.min)}</div>`; };
+  return `<div class="card routine" style="--acc:var(--c2)"><h2>🧹 Ménage du jour</h2>
+    <p class="sub">${undone.length?`${undone.length} petite${undone.length>1?'s':''} chose${undone.length>1?'s':''} · ~${mins} min. Le reste attend : c'est voulu.`:'🎉 Fini pour aujourd\'hui, bravo !'} (Budget du jour : ~${dayBudget()} min pour ${H.rooms.length} pièce${H.rooms.length>1?'s':''}${S.energy==='low'?', énergie basse':''}.)</p>
+    ${items.map(row).join('')||'<p class="sub">Rien à faire aujourd\'hui. Profite ! 😌</p>'}
+    ${more?`<div class="row" style="margin-top:10px;justify-content:flex-start"><button data-act="homeMore">💪 J'ai de l'énergie : une de plus</button></div>`:''}</div>
+  <div class="card"><h2>🏠 Mes pièces</h2><p class="sub">Touche la fréquence pour la changer. Ajoute ou supprime des tâches selon ton logement.</p></div>
+  ${H.rooms.map(r=>`<details class="card" data-rid="${r.id}" ${homeOpen[r.id]?'open':''}>
+    <summary style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${r.emoji} ${esc(r.name)}</b><span style="display:flex;gap:8px;align-items:center"><span class="chip">${r.tasks.length} tâche${r.tasks.length>1?'s':''}</span><span class="chev">▾</span></span></summary>
+    ${r.tasks.map(t=>`<div class="step"><span class="t" style="flex:1">${esc(t.text)}<br><span class="sub">${agoTxt(H.last[t.id])}</span></span>
+      <button class="chip" data-freq="${t.id}" title="Changer la fréquence" style="border:0;min-height:32px">${FREQ[t.f].label}</button>${minBtn('hmin',t.id,t.min)}
+      <button class="ghost" data-hdel="${t.id}" aria-label="Supprimer">✕</button></div>`).join('')}
+    <form data-room="${r.id}" class="row" style="flex-wrap:nowrap;margin-top:10px"><input placeholder="Ajouter une tâche à cette pièce…" autocomplete="off">
+      <select data-k="min" aria-label="Durée" style="width:auto;flex:none">${HOME_MINS.map(m=>`<option value="${m}" ${m===5?'selected':''}>${m} min</option>`).join('')}</select>
+      <select data-k="f" aria-label="Fréquence" style="width:auto;flex:none">${Object.entries(FREQ).map(([k,v])=>`<option value="${k}" ${k==='w'?'selected':''}>${v.label}</option>`).join('')}</select><button class="primary">+</button></form></details>`).join('')}
+  <div class="card"><h2>⚙️ Mon logement</h2><p class="sub">${H.rooms.length} pièces · environ ${Math.round(weekMin())} min de ménage par semaine, réparties sur les jours.${tooBig()?'<br>🏡 Ton logement est grand : à ~'+dayBudget()+' min par jour, certaines tâches reviendront un peu moins souvent que prévu. Pas grave : mieux vaut peu et régulier que tout d\'un coup. Tu peux aussi supprimer ou espacer des tâches dans « Mes pièces ».':''}</p>
+    <div class="row" style="justify-content:flex-start"><button data-act="homeEdit">✏️ Changer mes pièces / j'ai déménagé</button></div></div>`;
+}
+function movingHtml(){
+  const H=S.home;
+  const rooms=H.rooms.map(r=>({r,items:(MOVE_STEPS[r.type]||MOVE_STEPS.default).map((text,i)=>({id:`mv_${r.id}_${i}`,text}))}));
+  const admin=MOVE_ADMIN.map((text,i)=>({id:'mv_a'+i,text}));
+  const flat=[...rooms.flatMap(x=>x.items),...admin], n=flat.filter(i=>H.mv[i.id]).length, pct=Math.round(n/flat.length*100);
+  const list=items=>items.map(i=>`<div class="step ${H.mv[i.id]?'done':''}"><label><input type="checkbox" data-mv="${i.id}" ${H.mv[i.id]?'checked':''}><span class="t">${esc(i.text)}</span></label></div>`).join('');
+  return `<div class="card routine" style="--acc:var(--c0)"><h2>📦 Déménagement</h2>
+    <p class="sub">Une pièce à la fois, sans tout faire d'un coup. Commence par la pièce la moins importante pour t'échauffer.</p>
+    <div class="bar"><i style="width:${pct}%"></i></div><p class="sub" style="margin-top:8px">${n} / ${flat.length} étapes · ${pct}%</p></div>
+  ${rooms.map(x=>{ const dn=x.items.filter(i=>H.mv[i.id]).length; return `<details class="card" data-rid="mv_${x.r.id}" ${homeOpen['mv_'+x.r.id]?'open':''}>
+    <summary style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${x.r.emoji} ${esc(x.r.name)}</b><span style="display:flex;gap:8px;align-items:center"><span class="chip">${dn}/${x.items.length}</span><span class="chev">▾</span></span></summary>${list(x.items)}</details>`; }).join('')}
+  <details class="card" data-rid="mv_admin" ${homeOpen.mv_admin===false?'':'open'}>
+    <summary style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>📋 Papiers et abonnements</b><span style="display:flex;gap:8px;align-items:center"><span class="chip">${admin.filter(i=>H.mv[i.id]).length}/${admin.length}</span><span class="chev">▾</span></span></summary>${list(admin)}</details>
+  <div class="card"><p class="sub">Quand tu as emménagé, appuie sur « Changer mes pièces » pour créer le plan de ménage de ton nouveau logement.</p>
+    <div class="row" style="justify-content:flex-start"><button data-act="homeEdit">✏️ Changer mes pièces / j'ai déménagé</button></div></div>`;
+}
+/* --- Grand ménage de printemps : étapes en profondeur par pièce, étalées sur 2 à 6 semaines --- */
+const SPRING_STEPS={
+  chambre:[['Retourner et aérer le matelas',5],['Laver couette, oreillers et rideaux',10],['Dépoussiérer dessus d\'armoire, plinthes et tête de lit',10],['Trier les vêtements : donner / jeter / ranger selon la saison',20],['Nettoyer les vitres',10],['Aspirer sous le lit et derrière les meubles',8]],
+  sdb:[['Détartrer robinets, douche et pommeau',10],['Nettoyer les joints et le rideau de douche',10],['Vider et trier l\'armoire à pharmacie (jeter les périmés)',10],['Laver tapis et poubelle',5],['Nettoyer miroir, vitre et bouche d\'aération',8]],
+  wc:[['Détartrer la cuvette',8],['Nettoyer abattant, réservoir et pied',8],['Laver le sol et les plinthes',5]],
+  cuisine:[['Vider et nettoyer le frigo (étagères, joints)',15],['Dégraisser la hotte et ses filtres',15],['Nettoyer le four et le micro-ondes',20],['Trier les placards (jeter les périmés)',15],['Détartrer bouilloire et lave-vaisselle (cycle à vide)',10],['Dégraisser les façades de meubles',10],['Nettoyer les vitres',10]],
+  salon:[['Aspirer le canapé et dessous',10],['Laver coussins, plaids et rideaux',10],['Dépoussiérer étagères, objets et lampes',15],['Trier livres, papiers et déco : donner / jeter',20],['Nettoyer les vitres',10],['Sol à fond, sous les meubles',15]],
+  bureau:[['Trier et classer les papiers',20],['Dépoussiérer écran, clavier et câbles',10],['Vider et trier les tiroirs',15],['Nettoyer les vitres',10]],
+  entree:[['Trier chaussures et manteaux selon la saison',15],['Laver le paillasson',5],['Nettoyer porte, poignées et interrupteurs',8],['Sol à fond',8]],
+  linge:[['Nettoyer le lave-linge (cycle à vide chaud)',10],['Nettoyer le filtre du sèche-linge',5],['Trier les produits d\'entretien',10]],
+  ext:[['Nettoyer meubles et garde-corps',15],['Rempoter ou nettoyer les plantes',15],['Laver le sol',10]],
+  cave:[['Vider une étagère à la fois et trier : garder / donner / jeter',20],['Chasser humidité, moisissures et toiles d\'araignée',15],['Évacuer les cartons et encombrants (déchetterie)',20],['Balayer et ranger par catégories',15]],
+  garage:[['Trier outils, bricolage et jardin : garder / donner / jeter',20],['Évacuer peintures, produits dangereux et encombrants (déchetterie)',20],['Dépoussiérer étagères et toiles d\'araignée',15],['Balayer et laver le sol',15],['Contrôler pneus, extincteur et matériel de sécurité',10]],
+};
+const SPRING_HOUSE=[['Ouvrir toutes les fenêtres en grand 15 minutes',15],['Changer les piles du détecteur de fumée',5],['Dépoussiérer luminaires et plafonniers',15],['Nettoyer interrupteurs et poignées de portes',10],['Trier les produits ménagers (jeter les périmés)',10]];
+let springWeeks=4;
+function springOf(){ const H=S.home; return H.spring||(H.spring={active:false,weeks:4,start:null,done:{},pick:null}); }
+const springWeek=()=>{ const sp=springOf(); return Math.min(sp.weeks,Math.max(1,Math.floor(daysSince(sp.start)/7)+1)); };
+function springUnits(){
+  const H=S.home, weeks=springOf().active?springOf().weeks:springWeeks, ov=springOf().mins||{};
+  const mk=(pre,list)=>list.map(([text,min],i)=>({id:`${pre}_${i}`,text,min:ov[`${pre}_${i}`]||min}));
+  const u=H.rooms.map(r=>({key:r.id,emoji:r.emoji,name:r.name,steps:mk(`sp_${r.id}`,SPRING_STEPS[r.type]||[])}));
+  u.push({key:'house',emoji:'🏠',name:'Toute la maison',steps:mk('sp_house',SPRING_HOUSE)});
+  const list=u.filter(x=>x.steps.length); list.forEach((x,i)=>x.week=Math.min(weeks,Math.floor(i*weeks/list.length)+1));
+  return list;
+}
+function springCands(){ const sp=springOf(), cw=springWeek();
+  return springUnits().filter(u=>u.week<=cw).flatMap(u=>u.steps.map(s=>({s,u}))).filter(x=>!sp.done[x.s.id]); }
+function springPick(){ const sp=springOf(), k=todayKey(); if(sp.pick&&sp.pick.date===k) return;
+  sp.pick={date:k,ids:springCands().slice(0,S.energy==='low'?1:2).map(x=>x.s.id)}; save(); }
+function springMore(){ const sp=springOf(), x=springCands().find(c=>!sp.pick.ids.includes(c.s.id)); if(x){ sp.pick.ids.push(x.s.id); save(); } }
+function springHtml(){
+  const H=S.home, sp=springOf(), units=springUnits();
+  const allSteps=units.flatMap(u=>u.steps), total=allSteps.reduce((a,s)=>a+s.min,0);
+  if(!sp.active){
+    const per=Math.round(total/springWeeks);
+    return `<div class="card routine" style="--acc:var(--c3)"><h2>🌸 Grand ménage de printemps</h2>
+      <p class="sub">Un grand ménage en profondeur, mais <b>sans tout faire d'un coup</b> : je le découpe en petites étapes par pièce, étalées sur plusieurs semaines, <b>1 ou 2 étapes par jour</b>. Il suit tes ${H.rooms.length} pièce${H.rooms.length>1?'s':''}.</p>
+      <p style="margin:12px 0 4px"><b>Sur combien de semaines ?</b></p>
+      <div class="row seg">${[2,4,6].map(w=>`<button data-w="${w}" class="${springWeeks===w?'on':''}">${w} semaines</button>`).join('')}</div>
+      <p class="sub">${allSteps.length} étapes · environ ${Math.round(total/60)} h au total · ~${per} min par semaine (≈ ${Math.max(1,Math.round(per/7))} min par jour).</p>
+      <div class="row" style="justify-content:flex-start"><button class="primary" data-act="spStart">🌸 Commencer le grand ménage</button></div></div>`;
+  }
+  springPick();
+  const cw=springWeek(), n=allSteps.filter(s=>sp.done[s.id]).length, pct=Math.round(n/allSteps.length*100);
+  const byId={}; units.forEach(u=>u.steps.forEach(s=>byId[s.id]={s,u}));
+  const row=(s,label)=>`<div class="step ${sp.done[s.id]?'done':''}" style="--acc:var(--c3)"><label><input type="checkbox" data-sp="${s.id}" ${sp.done[s.id]?'checked':''}>
+    <span class="t">${esc(s.text)}${label?` <span class="sub">· ${label}</span>`:''}</span></label>${minBtn('smin',s.id,s.min)}</div>`;
+  const items=sp.pick.ids.map(id=>byId[id]).filter(Boolean), undone=items.filter(x=>!sp.done[x.s.id]);
+  const left=springCands().filter(c=>!sp.pick.ids.includes(c.s.id)).length;
+  const today=`<div class="card routine" style="--acc:var(--c3)"><h2>🌸 Aujourd'hui</h2>
+    <p class="sub">${n===allSteps.length?'🎉 Grand ménage terminé, bravo ! Offre-toi ta récompense.':undone.length?`${undone.length} étape${undone.length>1?'s':''}, ~${undone.reduce((a,x)=>a+x.s.min,0)} min. Rien d'autre aujourd'hui.`:items.length?'🎉 Fini pour aujourd\'hui !':'Rien à rattraper : profite, la suite arrive la semaine prochaine.'}</p>
+    ${items.map(x=>row(x.s,`${x.u.emoji} ${esc(x.u.name)}`)).join('')}
+    ${left?`<div class="row" style="margin-top:10px;justify-content:flex-start"><button data-act="spMore">💪 J'ai de l'énergie : une de plus</button></div>`:''}</div>`;
+  const weeks=Array.from({length:sp.weeks},(_,i)=>i+1).map(w=>{
+    const us=units.filter(u=>u.week===w), st=us.flatMap(u=>u.steps), dn=st.filter(s=>sp.done[s.id]).length, key='sp_w'+w;
+    return `<details class="card" data-rid="${key}" ${(homeOpen[key]!==undefined?homeOpen[key]:w===cw)?'open':''}>
+      <summary style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>Semaine ${w}${w===cw?' · en cours':''}</b><span style="display:flex;gap:8px;align-items:center"><span class="chip">${dn}/${st.length}</span><span class="chev">▾</span></span></summary>
+      ${us.map(u=>`<p style="margin:12px 0 2px"><b>${u.emoji} ${esc(u.name)}</b></p>${u.steps.map(s=>row(s)).join('')}`).join('')}</details>`; }).join('');
+  return `<div class="card routine" style="--acc:var(--c3)"><h2>🌸 Grand ménage · semaine ${cw}/${sp.weeks}</h2>
+      <div class="bar"><i style="width:${pct}%"></i></div><p class="sub" style="margin-top:8px">${n} / ${allSteps.length} étapes · ${pct}%</p></div>
+    ${today}
+    <div class="card"><h2>🗓️ Mon plan</h2><p class="sub">Les pièces sont réparties sur les semaines. Tu peux avancer en avance ou rattraper sans pression.</p></div>
+    ${weeks}
+    <div class="card"><div class="row" style="justify-content:flex-start"><button class="ghost" data-act="spStop">Arrêter et recommencer à zéro</button></div></div>`;
+}
+function renderHome(){
+  const el=$('#tab-home');
+  if(!S.home||homeEditing){ el.innerHTML=setupHtml(); return; }
+  const m=S.home.mode||(S.home.moving?'move':'clean');
+  el.innerHTML=`<div class="row seg"><button data-hm="clean" class="${m==='clean'?'on':''}">🧹 Ménage</button><button data-hm="spring" class="${m==='spring'?'on':''}">🌸 Grand ménage</button><button data-hm="move" class="${m==='move'?'on':''}">📦 Déménagement</button></div>`
+    +(m==='move'?movingHtml():m==='spring'?springHtml():cleanHtml());
+}
+$('#tab-home').addEventListener('click',e=>{
+  const sm=e.target.closest('summary');
+  if(sm&&sm.parentElement.dataset.rid){ homeOpen[sm.parentElement.dataset.rid]=!sm.parentElement.open; return; }
+  const b=e.target.closest('button'); if(!b) return; const H=S.home;
+  if(b.dataset.step){ homeDraft[b.dataset.step]=Math.max(0,Math.min(8,(homeDraft[b.dataset.step]||0)+(+b.dataset.d))); renderHome(); return; }
+  const a=b.dataset.act;
+  if(a==='homeCreate'){
+    if(H&&!confirm('Remplacer ton plan actuel ? Tes tâches personnalisées et ton historique de ménage seront remis à zéro.')) return;
+    S.home=generateHome(homeDraft); homeEditing=false; homeDraft=null; homeOpen={}; save(); renderHome(); return; }
+  if(a==='homeCancel'){ homeEditing=false; homeDraft=null; renderHome(); return; }
+  if(a==='homeEdit'){ homeEditing=true; homeDraft=null; renderHome(); return; }
+  if(a==='homeMore'){ pickMore(); renderHome(); return; }
+  if(a==='spStart'){ const sp=springOf(); sp.active=true; sp.weeks=springWeeks; sp.start=todayKey(); sp.done={}; sp.pick=null; save(); renderHome(); return; }
+  if(a==='spStop'){ if(!confirm('Arrêter le grand ménage ? Ta progression sera remise à zéro.')) return;
+    const sp=springOf(); sp.active=false; sp.done={}; sp.pick=null; save(); renderHome(); return; }
+  if(a==='spMore'){ springMore(); renderHome(); return; }
+  if(b.dataset.w){ springWeeks=+b.dataset.w; renderHome(); return; }
+  if(b.dataset.hm){ H.mode=b.dataset.hm; H.moving=H.mode==='move'; save(); renderHome(); return; }
+  if(b.dataset.hmin){ const x=findTask(b.dataset.hmin); x.t.min=nextMin(x.t.min); save(); renderHome(); return; }
+  if(b.dataset.smin){ const sp=springOf(), id=b.dataset.smin, cur=springUnits().flatMap(u=>u.steps).find(s=>s.id===id);
+    (sp.mins||(sp.mins={}))[id]=nextMin(cur&&cur.min); save(); renderHome(); return; }
+  if(b.dataset.freq){ const x=findTask(b.dataset.freq); x.t.f={d:'o',o:'t',t:'w',w:'b',b:'m',m:'d'}[x.t.f]||'w'; save(); renderHome(); return; }
+  if(b.dataset.hdel){ const x=findTask(b.dataset.hdel); x.room.tasks=x.room.tasks.filter(t=>t!==x.t); save(); renderHome(); return; }
+});
+$('#tab-home').addEventListener('change',e=>{
+  const H=S.home, k=todayKey();
+  if(e.target.dataset.ht){
+    const id=e.target.dataset.ht, v=e.target.checked;
+    if(v){ H.prev[id]=H.last[id]; H.last[id]=k; pop(['🧹','✨','💪','🌟'][Math.floor(Math.random()*4)]); }
+    else { if(H.prev[id]) H.last[id]=H.prev[id]; else delete H.last[id]; }
+    setDone('h_'+id,v); save(); renderHome(); renderHeader(); return;
+  }
+  if(e.target.dataset.sp){
+    const sp=springOf(), id=e.target.dataset.sp;
+    if(e.target.checked){ sp.done[id]=true; pop(['🌸','✨','🧽','🌟'][Math.floor(Math.random()*4)]); } else delete sp.done[id];
+    setDone('s_'+id,e.target.checked); save(); renderHome(); renderHeader(); return;
+  }
+  if(e.target.dataset.mv){ const id=e.target.dataset.mv; if(e.target.checked) H.mv[id]=true; else delete H.mv[id]; save(); renderHome(); }
+});
+$('#tab-home').addEventListener('submit',e=>{
+  e.preventDefault(); const f=e.target; if(!f.dataset.room) return;
+  const inp=f.querySelector('input'), v=inp.value.trim(); if(!v) return;
+  S.home.rooms.find(r=>r.id===f.dataset.room).tasks.push({id:uid(),text:v,f:f.querySelector('[data-k=f]').value||'w',min:+f.querySelector('[data-k=min]').value||5});
+  homeOpen[f.dataset.room]=true; save(); renderHome();
+});
+
+/* ---------- Navigation ---------- */
+function renderAll(skipFocus){ renderHeader(); renderToday(); if(!skipFocus) renderFocus(); }
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  ['today','focus','dump','stats','home','edit'].forEach(t=>$('#tab-'+t).classList.toggle('hidden',t!==b.dataset.tab));
+  if(b.dataset.tab==='stats') renderStats();
+  if(b.dataset.tab==='home') renderHome();
+  if(b.dataset.tab==='focus') renderFocus();
+  if(b.dataset.tab==='dump') renderDump();
+  if(b.dataset.tab==='edit') renderEdit();
+  $('#curTab').textContent=b.textContent.trim().replace(/\s+/g,' ');
+  $('#nav').classList.remove('open');
+  window.scrollTo(0,0);
+});
+renderAll(); renderDump(); renderEdit();
+</script>
+</body>
+</html>
