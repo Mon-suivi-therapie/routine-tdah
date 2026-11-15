@@ -748,13 +748,15 @@ const TIPS=`<div class="card"><h2>💡 Comment choisir quoi mettre</h2>
   </ol>
   <p class="sub">Sous chaque routine, une jauge te dit si elle est légère, chargée ou trop chargée.</p></div>`;
 function loadBox(r){
-  const n=r.steps.length, mins=r.steps.reduce((a,s)=>a+(+s.min||0),0), core=r.steps.filter(s=>s.core).length;
+  // Les étapes « détente » (lire, jeux vidéo, série…) ne comptent pas dans la charge : c'est du repos, pas une corvée.
+  const work=r.steps.filter(s=>!s.rest), rest=r.steps.filter(s=>s.rest), restMin=rest.reduce((a,s)=>a+(+s.min||0),0);
+  const n=work.length, mins=work.reduce((a,s)=>a+(+s.min||0),0), core=work.filter(s=>s.core).length;
   let cls,msg;
   if(n<=5&&mins<=60){ cls='ok'; msg='✅ Légère : parfait, tu peux la tenir.'; }
   else if(n<=7&&mins<=90){ cls='warn'; msg='🟠 Un peu chargée. Pour chaque étape : « si je la saute, ma journée est-elle vraiment pire ? » Si non, enlève-la.'; }
   else { cls='bad'; msg='🔴 Trop chargée : tu risques de tout lâcher. Garde 3 à 5 étapes. Mieux vaut une petite routine que tu tiens.'; }
-  const longs=r.steps.filter(s=>(+s.min||0)>30).slice(0,2).map(s=>`<div>✂️ « ${esc(s.text)} » dure ${s.min} min : découpe-la en petites étapes.</div>`).join('');
-  return `<div class="load ${cls}"><b>${n} étape${n>1?'s':''} · ~${mins} min</b> · ${core} essentielle${core>1?'s':''}<div>${msg}</div>${longs}</div>`;
+  const longs=work.filter(s=>(+s.min||0)>30).slice(0,2).map(s=>`<div>✂️ « ${esc(s.text)} » dure ${s.min} min : découpe-la en petites étapes.</div>`).join('');
+  return `<div class="load ${cls}"><b>${n} étape${n>1?'s':''} · ~${mins} min</b> · ${core} essentielle${core>1?'s':''}${rest.length?` · 😌 +${restMin} min de détente (non comptée)`:''}<div>${msg}</div>${longs}</div>`;
 }
 function renderEdit(){
   $('#editList').innerHTML=TIPS+S.routines.map((r,ri)=>`
@@ -770,6 +772,7 @@ function renderEdit(){
           <input data-f="text" value="${esc(s.text)}" aria-label="Étape">
           <input type="time" data-f="at" value="${s.at||''}" aria-label="Heure précise (optionnel)" title="Heure précise (optionnel)" style="width:125px">
           <input type="number" min="0" max="180" data-f="min" value="${s.min||0}" aria-label="Minutes">
+          <label class="chip" title="Lire, jeux vidéo, série… : du repos, ne compte pas dans la charge de la routine"><input type="checkbox" data-f="rest" ${s.rest?'checked':''} style="width:auto"> 😌 détente</label>
           <label class="chip" title="Gardée en mode énergie basse"><input type="checkbox" data-f="core" ${s.core?'checked':''} style="width:auto"> essentiel</label>
           <button class="ghost" data-act="up">↑</button>
           <button class="ghost" data-act="down">↓</button>
@@ -785,7 +788,7 @@ $('#editList').addEventListener('input',e=>{
   const card=e.target.closest('[data-r]'); if(!card||!e.target.dataset.f) return;
   const r=S.routines[+card.dataset.r], st=e.target.closest('[data-s]');
   if(st){ const s=r.steps[+st.dataset.s], f=e.target.dataset.f;
-    s[f]= f==='min'?+e.target.value : f==='core'?e.target.checked : e.target.value; }
+    s[f]= f==='min'?+e.target.value : (f==='core'||f==='rest')?e.target.checked : e.target.value; }
   else r[e.target.dataset.f]=e.target.value;
   save();
   const lb=card.querySelector('.load'); if(lb) lb.outerHTML=loadBox(r);
