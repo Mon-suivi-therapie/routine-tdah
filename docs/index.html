@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f2d9dc">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@500;700&display=swap">
@@ -281,6 +282,7 @@ details[open] .chev{transform:rotate(180deg)}
   <section id="tab-edit" class="hidden">
     <div id="editList"></div>
     <button class="primary" id="addRoutine" style="width:100%">➕ Nouvelle routine</button>
+    <div class="card" id="syncCard"></div>
     <div class="card">
       <h2>🧭 Assistant de priorité</h2>
       <label class="row" style="justify-content:flex-start;flex-wrap:nowrap;cursor:pointer">
@@ -382,7 +384,8 @@ if(S.v<4){ // v4 : 7 moments de la journée (Réveil, Matinée, Midi, Après-mid
   if(moved.length) C.steps.push(...moved); else if(!C.steps.length) C.steps.push(...mk('','','',[['Brosser les dents',3,true],['Écran off, lumière douce',2],['Aller au lit',0,true,'22:30']]).steps);
   S.routines=[R,M,Mi,A,D,So,C,...others.filter(r=>![M,Mi,D,C].includes(r))];
 }
-const save = () => { try{ localStorage.setItem('routine-tdah', JSON.stringify(S)); }catch(e){} };
+let syncArmed=false;
+const save = () => { if(syncArmed){ S.updatedAt=Date.now(); schedulePush(); } try{ localStorage.setItem('routine-tdah', JSON.stringify(S)); }catch(e){} };
 
 const done = id => !!(S.log[todayKey()]||{})[id];
 function setDone(id,v){
@@ -809,7 +812,7 @@ $('#editList').addEventListener('click',e=>{
   save(); renderEdit(); renderAll(true);
 });
 $('#addRoutine').onclick=()=>{ S.routines.push({id:uid(),emoji:'⭐',name:'Nouvelle routine',time:'',steps:[]}); save(); renderEdit(); renderAll(true); };
-$('#resetAll').onclick=()=>{ if(confirm('Tout effacer et revenir aux routines par défaut ?')){ localStorage.removeItem('routine-tdah'); location.reload(); } };
+$('#resetAll').onclick=async()=>{ if(confirm('Tout effacer (aussi dans ton compte synchronisé) et revenir aux routines par défaut ?')){ try{ if(sb&&sbUser) await sb.from('routine_data').delete().eq('user_id',sbUser.id); }catch(e){} localStorage.removeItem('routine-tdah'); location.reload(); } };
 
 /* ---------- Notifications ---------- */
 function notify(title,body){
@@ -907,7 +910,7 @@ $('#tab-stats').addEventListener('change',e=>{
   if(e.target.id!=='importFile'||!e.target.files[0]) return;
   const fr=new FileReader();
   fr.onload=()=>{ try{ const d=JSON.parse(fr.result); if(!d.routines) throw 0;
-    if(confirm('Remplacer tes données actuelles par ce fichier ?')){ localStorage.setItem('routine-tdah',JSON.stringify(d)); location.reload(); } }
+    if(confirm('Remplacer tes données actuelles par ce fichier ?')){ d.updatedAt=Date.now(); localStorage.setItem('routine-tdah',JSON.stringify(d)); location.reload(); } }
     catch(x){ alert('Fichier invalide.'); } };
   fr.readAsText(e.target.files[0]);
 });
@@ -1158,6 +1161,74 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   window.scrollTo(0,0);
 });
 renderAll(); renderDump(); renderEdit();
+/* ---------- Synchronisation entre appareils (Supabase) ---------- */
+const SB_URL='https://fazxmveukiqpcefzghsr.supabase.co', SB_KEY='sb_publishable_VPYYOesD0T97zyl3V9b0Ng_VUXQ-lph';
+let sb=null, sbUser=null, syncMsg='', pushTimer=null;
+try{ if(window.supabase) sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,storageKey:'routine-tdah-auth'}}); }catch(e){ sb=null; }
+const hhmm=()=>new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+function setSync(m){ syncMsg=m; const e=document.getElementById('syncStatus'); if(e) e.textContent=m; }
+async function syncPush(){
+  if(!sb||!sbUser) return;
+  try{ const {error}=await sb.from('routine_data').upsert({user_id:sbUser.id,data:S,updated_at:new Date().toISOString()});
+    setSync(error?'⚠️ Synchro impossible : '+error.message:'☁️ Synchronisé à '+hhmm()); }
+  catch(e){ setSync('⚠️ Hors ligne : ce sera synchronisé plus tard'); }
+}
+const hasLocalData=()=>S.tasks.length>0||!!S.home||Object.keys(S.mood||{}).length>0||S.points>0;
+async function syncPull(){
+  if(!sb||!sbUser) return;
+  try{
+    const {data,error}=await sb.from('routine_data').select('data').eq('user_id',sbUser.id).maybeSingle();
+    if(error){ setSync('⚠️ Synchro impossible : '+error.message); return; }
+    const remote=data&&data.data, first=!localStorage.getItem('routine-tdah-synced');
+    if(!remote){ localStorage.setItem('routine-tdah-synced','1'); await syncPush(); return; }
+    const rt=+remote.updatedAt||0, lt=+S.updatedAt||0;
+    if(first){ // premier branchement de ce navigateur : le compte gagne, sauf si on garde explicitement ce navigateur
+      localStorage.setItem('routine-tdah-synced','1');
+      if(hasLocalData()&&!confirm('Il y a déjà des données dans ton compte ET sur ce navigateur.\n\nOK = utiliser celles du compte (remplace celles d\'ici)\nAnnuler = garder celles de ce navigateur (remplace celles du compte)')){
+        S.updatedAt=Date.now(); save(); await syncPush(); return; }
+      localStorage.setItem('routine-tdah',JSON.stringify(remote)); location.reload(); return;
+    }
+    if(rt>lt){ localStorage.setItem('routine-tdah',JSON.stringify(remote)); location.reload(); return; }
+    if(lt>rt) await syncPush(); else setSync('☁️ Synchronisé à '+hhmm());
+  }catch(e){ setSync('⚠️ Hors ligne : les données restent sur cet appareil'); }
+}
+function schedulePush(){ if(!sbUser) return; clearTimeout(pushTimer); pushTimer=setTimeout(syncPush,1500); }
+function renderSync(){
+  const el=document.getElementById('syncCard'); if(!el) return;
+  if(!sb){ el.innerHTML='<h2>☁️ Synchronisation</h2><p class="sub">Indisponible pour le moment (pas de connexion ?). Tes données restent sur cet appareil.</p>'; return; }
+  if(!sbUser){
+    el.innerHTML=`<h2>☁️ Retrouver mes données sur mes autres appareils</h2>
+      <p class="sub">Connecte-toi avec ton compte (le même que pour Therapy) : tes tâches, routines et ménage se synchronisent tout seuls entre ton PC et ton téléphone.</p>
+      <form id="syncForm"><input id="syncEmail" type="email" autocomplete="username" placeholder="Email" required style="margin:6px 0">
+      <input id="syncPass" type="password" autocomplete="current-password" placeholder="Mot de passe" required style="margin:6px 0">
+      <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="primary">Se connecter</button></div></form>
+      <p class="sub" id="syncStatus">${esc(syncMsg)}</p>`;
+  } else {
+    el.innerHTML=`<h2>☁️ Synchronisation active</h2>
+      <p class="sub">Connecté : ${esc(sbUser.email||'')}. Tes données se synchronisent automatiquement.</p>
+      <p class="sub" id="syncStatus">${esc(syncMsg)}</p>
+      <div class="row" style="justify-content:flex-start"><button id="syncNow">🔄 Synchroniser maintenant</button><button class="ghost" id="syncOut">Se déconnecter</button></div>`;
+  }
+}
+document.addEventListener('submit',async e=>{
+  if(e.target.id!=='syncForm') return; e.preventDefault();
+  const email=$('#syncEmail').value.trim(), password=$('#syncPass').value; setSync('Connexion…');
+  try{ const {data,error}=await sb.auth.signInWithPassword({email,password});
+    if(error){ setSync('⚠️ '+(/invalid/i.test(error.message)?'Email ou mot de passe incorrect.':error.message)); return; }
+    sbUser=data.user; setSync(''); renderSync(); await syncPull();
+  }catch(x){ setSync('⚠️ Connexion impossible (hors ligne ?).'); }
+});
+document.addEventListener('click',async e=>{
+  if(e.target.id==='syncNow'){ setSync('Synchronisation…'); await syncPull(); }
+  if(e.target.id==='syncOut'){ await sb.auth.signOut(); sbUser=null; setSync(''); renderSync(); }
+});
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&sbUser) syncPull(); });
+(async()=>{
+  renderSync();
+  if(!sb) return;
+  try{ const {data}=await sb.auth.getSession(); if(data&&data.session){ sbUser=data.session.user; renderSync(); await syncPull(); } }catch(e){}
+})();
+syncArmed=true;
 </script>
 </body>
 </html>
