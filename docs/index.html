@@ -343,6 +343,10 @@ const DEFAULT = {
 let S;
 try{ S = JSON.parse(localStorage.getItem('routine-tdah')) || DEFAULT; }catch(e){ S = DEFAULT; }
 S = Object.assign({home:null,tasks:[],mood:{},points:0,energy:'normal',reward:'',therapyUrl:'https://mon-suivi-therapie.github.io/therapy-app/'}, S);
+/* Plusieurs logements : S.homes = [{id,name,data}], S.home = le logement affiché (même objet que homes[..].data) */
+if(!S.homes){ S.homes=[]; if(S.home){ const id=uid(); S.homes.push({id,name:'Mon logement',data:S.home}); S.homeCur=id; } }
+function relinkHome(){ const h=S.homes.find(x=>x.id===S.homeCur); S.home=h?h.data:null; }
+relinkHome();
 if(!S.v){ // v2 : ajoute la routine « Après-midi » une seule fois
   S.v=2;
   if(!S.routines.some(r=>/apr[eè]s/i.test(r.name))){
@@ -979,12 +983,12 @@ function pickToday(){ // la liste du jour est figée : cocher ne fait pas appara
 function pickMore(){ const H=S.home, x=dueTasks().find(d=>!H.pick.ids.includes(d.t.id)); if(x){ H.pick.ids.push(x.t.id); save(); } }
 function setupHtml(){
   const d=homeDraft||(homeDraft=countsFromHome()), total=Object.values(d).reduce((a,b)=>a+b,0);
-  return `<div class="card"><h2>🏠 Ma maison</h2>
+  return `<div class="card"><h2>🏠 ${newHome?'Nouveau logement':'Ma maison'}</h2>
     <p class="sub">Dis-moi quelles pièces tu as : je crée un plan de ménage léger, adapté à ton logement. Tu pourras le refaire si tu déménages.</p>
     ${Object.entries(ROOM_TYPES).map(([k,t])=>`<div class="stepper"><span>${t.emoji} ${t.name}</span>
       <span class="ctl"><button data-step="${k}" data-d="-1" aria-label="Moins">−</button><b>${d[k]||0}</b><button data-step="${k}" data-d="1" aria-label="Plus">+</button></span></div>`).join('')}
     <p class="sub" style="margin-top:10px">${total} pièce${total>1?'s':''} au total.</p>
-    <div class="row" style="justify-content:flex-start"><button class="primary" data-act="homeCreate" ${total?'':'disabled style="opacity:.5"'}>✨ Créer mon plan</button>${S.home?'<button data-act="homeCancel">Annuler</button>':''}</div></div>`;
+    <div class="row" style="justify-content:flex-start"><button class="primary" data-act="homeCreate" ${total?'':'disabled style="opacity:.5"'}>✨ Créer mon plan</button>${S.home||S.homes.length?'<button data-act="homeCancel">Annuler</button>':''}</div></div>`;
 }
 const HOME_MINS=[2,3,5,8,10,15,20,30,45,60];
 const nextMin=m=>HOME_MINS.find(x=>x>(+m||0))||HOME_MINS[0];
@@ -1093,11 +1097,19 @@ function springHtml(){
     ${weeks}
     <div class="card"><div class="row" style="justify-content:flex-start"><button class="ghost" data-act="spStop">Arrêter et recommencer à zéro</button></div></div>`;
 }
+let newHome=false;
+function homesBar(){
+  const L=S.homes, cur=L.find(h=>h.id===S.homeCur);
+  return `<div class="card" style="margin-top:4px"><h2>🏘️ Mes logements</h2>
+    <div class="row seg" style="margin-top:10px">${L.map(h=>`<button data-hs="${h.id}" class="${h.id===S.homeCur?'on':''}">🏠 ${esc(h.name)}</button>`).join('')}<button data-act="homeAdd">➕ Ajouter un logement</button></div>
+    ${cur?`<p class="sub" style="margin-top:8px">Chaque logement a ses pièces, son plan et son grand ménage. Tu vois ici : <b>${esc(cur.name)}</b>.</p>
+    <div class="row" style="justify-content:flex-start"><button class="ghost" data-act="homeRename">✏️ Renommer</button>${L.length>1?'<button class="ghost" data-act="homeDelete">🗑 Supprimer ce logement</button>':''}</div>`:''}</div>`;
+}
 function renderHome(){
   const el=$('#tab-home');
-  if(!S.home||homeEditing){ el.innerHTML=setupHtml(); return; }
+  if(!S.home||homeEditing){ el.innerHTML=(S.homes.length&&!newHome?homesBar():'')+setupHtml(); return; }
   const m=S.home.mode||(S.home.moving?'move':'clean');
-  el.innerHTML=`<div class="row seg"><button data-hm="clean" class="${m==='clean'?'on':''}">🧹 Ménage</button><button data-hm="spring" class="${m==='spring'?'on':''}">🌸 Grand ménage</button><button data-hm="move" class="${m==='move'?'on':''}">📦 Déménagement</button></div>`
+  el.innerHTML=homesBar()+`<div class="row seg"><button data-hm="clean" class="${m==='clean'?'on':''}">🧹 Ménage</button><button data-hm="spring" class="${m==='spring'?'on':''}">🌸 Grand ménage</button><button data-hm="move" class="${m==='move'?'on':''}">📦 Déménagement</button></div>`
     +(m==='move'?movingHtml():m==='spring'?springHtml():cleanHtml());
 }
 $('#tab-home').addEventListener('click',e=>{
@@ -1107,10 +1119,21 @@ $('#tab-home').addEventListener('click',e=>{
   if(b.dataset.step){ homeDraft[b.dataset.step]=Math.max(0,Math.min(8,(homeDraft[b.dataset.step]||0)+(+b.dataset.d))); renderHome(); return; }
   const a=b.dataset.act;
   if(a==='homeCreate'){
-    if(H&&!confirm('Remplacer ton plan actuel ? Tes tâches personnalisées et ton historique de ménage seront remis à zéro.')) return;
-    S.home=generateHome(homeDraft); homeEditing=false; homeDraft=null; homeOpen={}; save(); renderHome(); return; }
-  if(a==='homeCancel'){ homeEditing=false; homeDraft=null; renderHome(); return; }
+    if(H&&!newHome&&!confirm('Remplacer ton plan actuel ? Tes tâches personnalisées et ton historique de ménage seront remis à zéro.')) return;
+    const nh=generateHome(homeDraft), cur=S.homes.find(x=>x.id===S.homeCur);
+    if(newHome||!cur){
+      const name=(prompt('Nom de ce logement ?',newHome?'Logement '+(S.homes.length+1):'Mon logement')||'').trim()||('Logement '+(S.homes.length+1));
+      const id=uid(); S.homes.push({id,name,data:nh}); S.homeCur=id;
+    } else cur.data=nh;
+    relinkHome(); newHome=false; homeEditing=false; homeDraft=null; homeOpen={}; save(); renderHome(); return; }
+  if(a==='homeCancel'){ newHome=false; homeEditing=false; homeDraft=null; renderHome(); return; }
   if(a==='homeEdit'){ homeEditing=true; homeDraft=null; renderHome(); return; }
+  if(a==='homeAdd'){ newHome=true; homeEditing=true; homeDraft={chambre:1,sdb:1,wc:1,cuisine:1,salon:1,bureau:0,entree:1,linge:0,ext:0,cave:0,garage:0}; renderHome(); return; }
+  if(a==='homeRename'){ const cur=S.homes.find(x=>x.id===S.homeCur); const n=(prompt('Nouveau nom du logement ?',cur.name)||'').trim(); if(n){ cur.name=n; save(); renderHome(); } return; }
+  if(a==='homeDelete'){ const cur=S.homes.find(x=>x.id===S.homeCur);
+    if(!confirm('Supprimer le logement « '+cur.name+' » et tout son plan de ménage ? C\'est définitif.')) return;
+    S.homes=S.homes.filter(x=>x!==cur); S.homeCur=S.homes[0]?S.homes[0].id:null; relinkHome(); homeOpen={}; save(); renderHome(); return; }
+  if(b.dataset.hs){ S.homeCur=b.dataset.hs; relinkHome(); homeOpen={}; homeEditing=false; save(); renderHome(); return; }
   if(a==='homeMore'){ pickMore(); renderHome(); return; }
   if(a==='spStart'){ const sp=springOf(); sp.active=true; sp.weeks=springWeeks; sp.start=todayKey(); sp.done={}; sp.pick=null; save(); renderHome(); return; }
   if(a==='spStop'){ if(!confirm('Arrêter le grand ménage ? Ta progression sera remise à zéro.')) return;
