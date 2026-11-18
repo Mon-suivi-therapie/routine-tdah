@@ -166,6 +166,35 @@ nav button.on{background:var(--pink);border-color:var(--pink-deep)}
 .promoform input[type=number]{width:72px}
 .promoform [hidden]{display:none}
 .qty{display:flex;align-items:center;gap:2px;flex:none}
+/* Mes comptes + budget courses */
+.budget{border-left:6px solid var(--ok)}
+.budget.over{border-left-color:var(--pink-ink)}
+.monthnav{justify-content:space-between!important;align-items:center;margin:4px 0 8px}
+.monthnav b{font-family:var(--serif);font-size:1.2rem}
+.monthnav button{min-height:44px;width:48px;padding:0}
+.accrow{gap:5px;padding:6px 0}
+.accrow input.amt{width:78px!important}
+.accrow button.ghost{padding:0 4px;min-width:30px}
+.step.accrow input[type=checkbox]{width:26px;height:26px;border-width:3px;box-shadow:none}
+.accrow input{min-width:0;padding:10px 10px;min-height:44px}
+.accrow input[data-f=name]{flex:1 1 auto}
+.accrow input.amt{width:82px;flex:none;text-align:right;font-variant-numeric:tabular-nums}
+.accrow>span{margin-left:-2px}
+.accrow input[type=checkbox]{appearance:none;-webkit-appearance:none;width:26px;height:26px;min-height:0;flex:none;border-radius:50%;border:3px solid var(--line-strong);background:var(--card);padding:0;display:grid;place-items:center;cursor:pointer}
+.accrow input[type=checkbox]::after{content:"✓";color:#fff;font-weight:800;font-size:.85rem;transform:scale(0);transition:transform .15s}
+.accrow input[type=checkbox]:checked{background:var(--ok);border-color:var(--ok)}
+.accrow input[type=checkbox]:checked::after{transform:scale(1)}
+.accrow.paid input[data-f=name],.accrow.paid input.amt{color:var(--mute);text-decoration:line-through}
+.live{border:2px solid var(--green-deep)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
+.accrow input.bad{border-color:var(--pink-ink);background:var(--pink)}
+.accrow button{flex:none;padding:0 8px}
+.sumrow{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.sumrow:first-of-type{border-top:0}
+.sumrow.big{font-size:1.15rem;border-radius:14px;padding:12px;margin:6px 0;border:0}
+.sumrow.big.pos{background:var(--green);color:#14301f}
+.sumrow.big.neg{background:var(--pink);color:#4a1424}
+.negtxt{color:var(--pink-ink)}
 .qty b{min-width:22px;text-align:center}
 .qty button{min-height:34px;width:34px;padding:0;font-size:1.15rem}
 details.card>summary{list-style:none;cursor:pointer}
@@ -293,6 +322,9 @@ details[open] .chev{transform:rotate(180deg)}
   <!-- COURSES -->
   <section id="tab-shop" class="hidden"></section>
 
+  <!-- MES COMPTES -->
+  <section id="tab-money" class="hidden"></section>
+
   <!-- ROUTINES -->
   <section id="tab-edit" class="hidden">
     <div id="editList"></div>
@@ -328,6 +360,7 @@ details[open] .chev{transform:rotate(180deg)}
   <button data-tab="dump"><span>🧠</span>Vide-tête</button>
   <button data-tab="home"><span>🧹</span>Ménage</button>
   <button data-tab="shop"><span>🛒</span>Courses</button>
+  <button data-tab="money"><span>💶</span>Mes comptes</button>
   <button data-tab="stats"><span>📊</span>Bilan</button>
   <button data-tab="edit"><span>⚙️</span>Routines</button>
 </div></nav>
@@ -1293,7 +1326,7 @@ function renderShop(){
   const groups=SHOP_CATS.map(([k,e,n])=>{ const g=it.filter(x=>x.cat===k).sort((a,b)=>a.done-b.done); if(!g.length) return '';
     const gl=g.filter(x=>!x.done&&!(x.price<0)).length;
     return `<div class="card routine"><h2>${e} ${n} <span class="chip">${gl?gl+' à prendre':'✓ tout pris'}</span></h2>${g.map(row).join('')}</div>`; }).join('');
-  $('#tab-shop').innerHTML=`<div class="card"><h2>🛒 Ma liste de courses</h2>
+  $('#tab-shop').innerHTML=budgetCard()+`<div class="card"><h2>🛒 Ma liste de courses</h2>
     <p class="sub">${it.length?(left.length?`<b>${nLeft}</b> article${nLeft>1?'s':''} à prendre · reste ~<b>${euro(sumOf(left))}</b> · total liste ~${euro(sumOf(it))}${saved>0.004?` · 🏷️ ${euro(saved)} économisés`:''}`:'🎉 Tout est dans le panier, bravo !'):'Ta liste est vide.'}</p>
     ${it.length?`<div class="bar"><i style="width:${Math.round(got.length/it.length*100)}%"></i></div>`:''}
     <form id="shopForm" class="row" style="margin-top:14px">
@@ -1352,13 +1385,143 @@ $('#tab-shop').addEventListener('submit',e=>{
   save(); renderShop(); $('#shopText').focus();
 });
 
+/* ---------- Mes comptes (budget du mois) ----------
+   S.acc = {cur:'AAAA-MM', months:{'AAAA-MM':{exp:[{id,name,amt}], inc:[{id,name,amt}]}}, shopBudget:null|nombre}
+   Le code publié ne contient que des noms de lignes : les montants sont tapés dans l'appli (le dépôt est public). */
+const ACC_EXP=['Découvert','Frais bancaire','Loyer','EDF','Poubelle','Assurance','Mutuelle','Sova','Téléphone','Salle de sport','Internet','Filea','Imprimante','Banque','Cdiscount','Klarna','Brandon'];
+const ACC_INC=['AAH','Découvert autorisé'];
+const monthKey=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+const monthLabel=k=>{ const [y,m]=k.split('-').map(Number); const s=new Date(y,m-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'}); return s[0].toUpperCase()+s.slice(1); };
+const shiftMonth=(k,n)=>{ const [y,m]=k.split('-').map(Number); return monthKey(new Date(y,m-1+n,1)); };
+const blankLines=names=>names.map(name=>({id:uid(),name,amt:null}));
+if(!S.acc){ const k=monthKey(new Date(new Date().getFullYear(),11,1)); // le tableau de départ est celui de décembre
+  S.acc={cur:k,months:{[k]:{exp:blankLines(ACC_EXP),inc:blankLines(ACC_INC)}},shopBudget:null}; }
+const accMonth=()=>S.acc.months[S.acc.cur];
+const accSum=a=>a.reduce((t,l)=>t+(+l.amt||0),0);
+const accLeft=m=>m?accSum(m.inc)-accSum(m.exp):null;
+function parseAmt(v){ v=String(v).replace(/\s|€/g,'').replace(',','.'); if(v==='') return null; const n=parseFloat(v); return isNaN(n)?NaN:Math.round(n*100)/100; }
+const amtVal=a=>a==null?'':String(a.toFixed(2)).replace('.',',');
+/* Budget courses : montant choisi, sinon « ce qu'il reste » du mois affiché dans Mes comptes */
+function shopBudget(){ if(S.acc.shopBudget>0) return {v:S.acc.shopBudget,src:'fixed'};
+  const c=liveCalc(accMonth()); if(c) return c.end>0?{v:c.end,src:'live'}:{v:0,src:'live'}; // solde réel noté : on part de ce qu'il restera vraiment
+  const l=accLeft(accMonth()); return l>0?{v:l,src:'left'}:null; }
+function budgetCard(){
+  const b=shopBudget(), list=sumOf(S.shop.items.filter(x=>!x.done)), all=sumOf(S.shop.items);
+  if(!b) return `<div class="card budget"><h2>💶 Mon budget courses</h2><p class="sub">Pas encore de budget. Choisis un montant, ou remplis « Mes comptes » : ce qu'il te reste sera utilisé.</p>${budgetForm()}</div>`;
+  const rest=b.v-all, pct=b.v>0?Math.min(100,Math.round(all/b.v*100)):100, over=rest<0;
+  return `<div class="card budget ${over?'over':''}"><h2>💶 Mon budget courses</h2>
+    <p class="sub">Budget <b>${euro(b.v)}</b> ${b.src==='left'?`<span class="chip">ce qu'il reste en ${esc(monthLabel(S.acc.cur).split(' ')[0].toLowerCase())}</span>`:b.src==='live'?`<span class="chip">⏱️ ce qu'il restera sur mon compte</span>`:''} · liste <b>${euro(all)}</b>${list!==all?` (encore ${euro(list)} à prendre)`:''}</p>
+    <div class="bar"><i style="width:${pct}%;${over?'background:var(--pink-ink)':''}"></i></div>
+    <p style="margin:10px 0 0;font-weight:700">${over?`⚠️ Tu dépasses de ${euro(-rest)}. Enlève ou décale un article, rien de grave.`:`✅ Il te restera ${euro(rest)} après les courses.`}</p>
+    <details style="margin-top:8px"><summary class="sub" style="cursor:pointer">Changer le budget</summary>${budgetForm()}</details></div>`;
+}
+function budgetForm(){
+  return `<form data-budget="1" class="row" style="justify-content:flex-start;margin-top:8px">
+    <input data-k="b" type="text" inputmode="decimal" autocomplete="off" placeholder="ex : 150" value="${S.acc.shopBudget>0?amtVal(S.acc.shopBudget):''}" style="width:110px;flex:none" aria-label="Budget courses en euros"> €
+    <button class="primary">OK</button>${S.acc.shopBudget>0?`<button type="button" class="ghost" data-budgetauto="1">Utiliser ce qu'il reste du mois</button>`:''}</form>`;
+}
+function moneyLines(kind,title,emoji){
+  const m=accMonth(), a=m[kind];
+  return `<div class="card routine"><h2>${emoji} ${title} <span class="chip" data-tot="${kind}">${euro(accSum(a))}</span></h2>
+    <p class="sub" style="margin:0 0 4px">Coche quand c'est ${kind==='exp'?'<b>prélevé</b> (déjà sorti du compte)':'<b>reçu</b> (déjà sur le compte)'}.</p>
+    ${a.map(l=>`<div class="step accrow ${l.paid?'paid':''}"><input type="checkbox" data-acc="${kind}" data-id="${l.id}" data-f="paid" ${l.paid?'checked':''} title="${kind==='exp'?'Déjà prélevé':'Déjà reçu'}" aria-label="${kind==='exp'?'Déjà prélevé':'Déjà reçu'} : ${esc(l.name)}"><input data-acc="${kind}" data-id="${l.id}" data-f="name" value="${esc(l.name)}" aria-label="Nom" autocomplete="off">
+      <input data-acc="${kind}" data-id="${l.id}" data-f="amt" value="${amtVal(l.amt)}" placeholder="— €" inputmode="decimal" autocomplete="off" aria-label="Montant en euros" class="amt">
+      <button class="ghost" data-accdel="${kind}" data-id="${l.id}" aria-label="Supprimer la ligne">✕</button></div>`).join('')}
+    <button class="ghost" data-accadd="${kind}" style="margin-top:8px">➕ Ajouter une ligne</button></div>`;
+}
+function moneySummary(){
+  const m=accMonth(), exp=accSum(m.exp), inc=accSum(m.inc), left=inc-exp, shop=sumOf(S.shop.items);
+  return `<h2>🧮 Résumé de ${esc(monthLabel(S.acc.cur).toLowerCase())}</h2>
+    <div class="sumrow"><span>Total dépenses</span><b>${euro(exp)}</b></div>
+    <div class="sumrow"><span>Total revenus</span><b>${euro(inc)}</b></div>
+    <div class="sumrow big ${left<0?'neg':'pos'}"><span>Ce qu'il reste</span><b>${euro(left)}</b></div>
+    ${shop?`<div class="sumrow"><span>🛒 Après la liste de courses (${euro(shop)})</span><b class="${left-shop<0?'negtxt':''}">${euro(left-shop)}</b></div>`:''}`;
+}
+/* Temps réel : solde actuel saisi + ce qui n'est pas encore prélevé / reçu */
+function liveCalc(m){
+  if(!m||!m.bal||m.bal.v==null) return null;
+  const toPay=m.exp.filter(l=>!l.paid&&+l.amt), toGet=m.inc.filter(l=>!l.paid&&+l.amt);
+  const pay=accSum(toPay), get=accSum(toGet);
+  return {bal:m.bal.v,at:m.bal.at,toPay,toGet,pay,get,end:m.bal.v-pay+get};
+}
+const agoShort=t=>{ const s=(Date.now()-t)/1000; if(s<60) return 'à l\'instant'; if(s<3600) return `il y a ${Math.floor(s/60)} min`; if(s<86400) return `il y a ${Math.floor(s/3600)} h`;
+  return 'le '+new Date(t).toLocaleDateString('fr-FR',{day:'numeric',month:'long'})+' à '+new Date(t).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); };
+function liveHtml(){
+  const m=accMonth(), c=liveCalc(m), shop=sumOf(S.shop.items.filter(x=>!x.done));
+  const list=(a,sign)=>a.map(l=>`<span class="chip">${esc(l.name)} ${sign}${euro(+l.amt)}</span>`).join(' ');
+  return `<h2>⏱️ Mon compte en temps réel</h2>
+    <form data-bal="1" class="row" style="justify-content:flex-start;flex-wrap:nowrap">
+      <input data-k="bal" type="text" inputmode="decimal" autocomplete="off" placeholder="ex : 412,50 ou -85" value="${m.bal&&m.bal.v!=null?amtVal(m.bal.v):''}" aria-label="Solde actuel du compte" style="flex:1;min-width:0">
+      <span style="flex:none">€</span><button class="primary" style="flex:none">Actualiser</button></form>
+    <p class="sub" style="margin-top:6px">${c?`Solde noté ${agoShort(c.at)}. Regarde ton appli bancaire et remets-le à jour quand tu veux.`:'Regarde ton appli bancaire et tape ce qu\'il y a sur ton compte maintenant (avec un « - » si tu es à découvert).'}</p>
+    ${c?`<div class="sumrow"><span>💳 Sur mon compte maintenant</span><b class="${c.bal<0?'negtxt':''}">${euro(c.bal)}</b></div>
+    <div class="sumrow"><span>📤 Prélèvements à venir (${c.toPay.length})</span><b>−${euro(c.pay)}</b></div>
+    ${c.toPay.length?`<div class="chips">${list(c.toPay,'−')}</div>`:''}
+    ${c.toGet.length?`<div class="sumrow"><span>📥 Revenus à venir (${c.toGet.length})</span><b>+${euro(c.get)}</b></div><div class="chips">${list(c.toGet,'+')}</div>`:''}
+    <div class="sumrow big ${c.end<0?'neg':'pos'}"><span>Il me restera</span><b>${euro(c.end)}</b></div>
+    ${shop?`<div class="sumrow"><span>🛒 Après les courses à faire (${euro(shop)})</span><b class="${c.end-shop<0?'negtxt':''}">${euro(c.end-shop)}</b></div>`:''}
+    <button type="button" class="ghost" data-balclear="1" style="margin-top:6px">Effacer le solde</button>`:''}`;
+}
+function refreshMoney(){ const s=$('#moneySum'), l=$('#moneyLive'); if(s) s.innerHTML=moneySummary(); if(l) l.innerHTML=liveHtml(); }
+function renderMoney(){
+  const el=$('#tab-money'), k=S.acc.cur, m=accMonth();
+  const nav=`<div class="card"><h2>💶 Mes comptes</h2><div class="row monthnav"><button class="ghost" data-mon="-1" aria-label="Mois précédent">◀</button><b>${esc(monthLabel(k))}</b><button class="ghost" data-mon="1" aria-label="Mois suivant">▶</button></div>
+    <p class="sub">Note tes dépenses et tes revenus du mois : je calcule ce qu'il te reste. Laisse vide ce qui ne tombe pas ce mois-ci.</p></div>`;
+  if(!m){ const prev=Object.keys(S.acc.months).filter(x=>x<k).sort().pop()||Object.keys(S.acc.months).sort()[0];
+    el.innerHTML=nav+`<div class="card"><p class="sub">Pas encore de comptes pour ${esc(monthLabel(k).toLowerCase())}.</p>
+      <div class="row" style="justify-content:flex-start">${prev?`<button class="primary" data-accnew="copy" data-from="${prev}">📋 Reprendre les lignes de ${esc(monthLabel(prev).toLowerCase())}</button>`:''}
+      <button data-accnew="blank">Commencer vide</button></div>${prev?`<p class="sub">Les montants sont repris aussi : tu n'as qu'à corriger ce qui change.</p>`:''}</div>`;
+    return; }
+  el.innerHTML=nav+`<div class="card live" id="moneyLive">${liveHtml()}</div>`+moneyLines('exp','Dépenses','📤')+moneyLines('inc','Revenus','📥')+`<div class="card" id="moneySum">${moneySummary()}</div>`
+    +(Object.keys(S.acc.months).length>1?`<button class="ghost" data-accdelmonth="1" style="width:100%">Supprimer les comptes de ${esc(monthLabel(k).toLowerCase())}</button>`:'');
+}
+$('#tab-money').addEventListener('change',e=>{
+  const t=e.target, kind=t.dataset.acc; if(!kind) return;
+  const l=accMonth()[kind].find(x=>x.id===t.dataset.id); if(!l) return;
+  if(t.dataset.f==='paid'){ l.paid=t.checked; t.closest('.accrow').classList.toggle('paid',l.paid); if(l.paid) pop(kind==='exp'?'💸':'💰'); }
+  else if(t.dataset.f==='name'){ l.name=t.value.trim()||l.name; t.value=l.name; }
+  else { const v=parseAmt(t.value); if(Number.isNaN(v)){ t.classList.add('bad'); t.value=amtVal(l.amt); setTimeout(()=>t.classList.remove('bad'),1500); return; }
+    l.amt=v; t.value=amtVal(v); }
+  save(); refreshMoney();
+  const tot=$(`#tab-money [data-tot="${kind}"]`); if(tot) tot.textContent=euro(accSum(accMonth()[kind]));
+});
+$('#tab-money').addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.target.dataset.acc) e.target.blur(); });
+$('#tab-money').addEventListener('submit',e=>{
+  if(!e.target.dataset.bal) return; e.preventDefault();
+  const v=parseAmt(e.target.querySelector('[data-k=bal]').value);
+  if(v==null||Number.isNaN(v)) return alert('Tape le montant de ton compte (exemple : 412,50, ou -85 si tu es à découvert).');
+  accMonth().bal={v,at:Date.now()}; save(); refreshMoney(); pop('🔄');
+});
+$('#tab-money').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.balclear){ delete accMonth().bal; save(); refreshMoney(); return; }
+  if(b.dataset.mon){ S.acc.cur=shiftMonth(S.acc.cur,+b.dataset.mon); save(); renderMoney(); return; }
+  if(b.dataset.accnew){ const src=b.dataset.accnew==='copy'&&S.acc.months[b.dataset.from];
+    const cp=a=>a.map(l=>({id:uid(),name:l.name,amt:l.amt}));
+    S.acc.months[S.acc.cur]=src?{exp:cp(src.exp),inc:cp(src.inc)}:{exp:[],inc:[]}; save(); renderMoney(); return; }
+  if(b.dataset.accadd){ const kind=b.dataset.accadd, l={id:uid(),name:kind==='exp'?'Nouvelle dépense':'Nouveau revenu',amt:null};
+    accMonth()[kind].push(l); save(); renderMoney(); const i=$(`#tab-money input[data-id="${l.id}"][data-f=name]`); if(i){ i.focus(); i.select(); } return; }
+  if(b.dataset.accdel){ const m=accMonth(), kind=b.dataset.accdel, l=m[kind].find(x=>x.id===b.dataset.id);
+    if(l&&(l.amt==null||confirm(`Supprimer la ligne « ${l.name} » ?`))){ m[kind]=m[kind].filter(x=>x!==l); save(); renderMoney(); } return; }
+  if(b.dataset.accdelmonth&&confirm(`Supprimer tous les comptes de ${monthLabel(S.acc.cur).toLowerCase()} ? C'est définitif.`)){ delete S.acc.months[S.acc.cur]; save(); renderMoney(); }
+});
+/* Budget dans l'onglet Courses */
+$('#tab-shop').addEventListener('submit',e=>{
+  if(!e.target.dataset.budget) return; e.preventDefault(); e.stopImmediatePropagation();
+  const v=parseAmt(e.target.querySelector('[data-k=b]').value);
+  if(v==null){ S.acc.shopBudget=null; } else if(Number.isNaN(v)||v<=0) return alert('Budget invalide (exemple : 150 ou 150,50).'); else S.acc.shopBudget=v;
+  save(); renderShop();
+},true);
+$('#tab-shop').addEventListener('click',e=>{ const b=e.target.closest('[data-budgetauto]'); if(!b) return; S.acc.shopBudget=null; save(); renderShop(); });
+
 /* ---------- Navigation ---------- */
 function renderAll(skipFocus){ renderHeader(); renderToday(); if(!skipFocus) renderFocus(); }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-  ['today','focus','dump','stats','home','shop','edit'].forEach(t=>$('#tab-'+t).classList.toggle('hidden',t!==b.dataset.tab));
+  ['today','focus','dump','stats','home','shop','money','edit'].forEach(t=>$('#tab-'+t).classList.toggle('hidden',t!==b.dataset.tab));
   if(b.dataset.tab==='stats') renderStats();
   if(b.dataset.tab==='shop') renderShop();
+  if(b.dataset.tab==='money') renderMoney();
   if(b.dataset.tab==='home') renderHome();
   if(b.dataset.tab==='focus') renderFocus();
   if(b.dataset.tab==='dump') renderDump();
