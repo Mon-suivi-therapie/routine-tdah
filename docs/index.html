@@ -1252,7 +1252,16 @@ function promoHint(x){ // lot pas encore complet : dire combien en ajouter pour 
   if(r===0) return ''; if(r>=p.buy) return ` 💡 +${n-r} = gratuit${n-r>1?'s':''}`;
   return ` encore ${p.buy-r} pour la promo`;
 }
-let shopPromoOpen=null;
+let shopPromoOpen=null, shopEditOpen=null;
+function editForm(x){ // corriger une erreur : nom, prix à l'unité, rayon
+  return `<form class="promoform" data-edit="${x.id}">
+    <input data-k="text" value="${esc(x.text)}" aria-label="Nom de l'article" style="flex:1 1 100%">
+    <label style="display:flex;gap:6px;align-items:center">Prix/u <input data-k="price" type="text" inputmode="decimal" autocomplete="off" value="${x.price>0?(+x.price).toFixed(2).replace('.',','):''}" placeholder="—" aria-label="Prix à l'unité" style="width:90px"> €</label>
+    <select data-k="cat" aria-label="Rayon">${SHOP_CATS.map(([k,e,n])=>`<option value="${k}" ${k===x.cat?'selected':''}>${e} ${n}</option>`).join('')}</select>
+    <span class="row" style="justify-content:flex-start;width:100%">
+      <button class="primary">Enregistrer</button>
+      <button type="button" class="ghost" data-promoclose="1">Annuler</button></span></form>`;
+}
 function promoForm(x){
   const p=x.promo||{t:'lot',buy:2,free:1}, t=p.t;
   return `<form class="promoform" data-promo="${x.id}">
@@ -1263,7 +1272,7 @@ function promoForm(x){
     <span data-for="lot" ${t!=='lot'?'hidden':''}><input data-k="buy" type="number" min="1" step="1" value="${p.buy||2}" aria-label="Nombre achetés"> achetés +
       <input data-k="free" type="number" min="1" step="1" value="${p.free||1}" aria-label="Nombre offerts"> offert(s)</span>
     <span data-for="pct" ${t!=='pct'?'hidden':''}>− <input data-k="pct" type="number" min="1" max="100" step="1" value="${t==='pct'?p.v:20}" aria-label="Pourcentage"> %</span>
-    <span data-for="eur" ${t!=='eur'?'hidden':''}>− <input data-k="eur" type="number" min="0.01" step="0.01" value="${t==='eur'?p.v:1}" aria-label="Euros en moins"> € sur la ligne</span>
+    <span data-for="eur" ${t!=='eur'?'hidden':''}>− <input data-k="eur" type="text" inputmode="decimal" autocomplete="off" style="width:72px" value="${String(t==='eur'?p.v:1).replace('.',',')}" aria-label="Euros en moins"> € sur la ligne</span>
     <span class="row" style="justify-content:flex-start;width:100%">
       <button class="primary">Appliquer</button>
       ${x.promo?`<button type="button" class="ghost" data-promodel="${x.id}">Retirer la promo</button>`:''}
@@ -1277,9 +1286,10 @@ function renderShop(){
     <span class="t">${esc(x.text)}${x.price&&x.qty>1?`<br><span class="sub">${x.qty} × ${euro(+x.price)}</span>`:''}${promo?`<br><span class="chip promochip">🏷️ ${promoTxt(x.promo)}</span><span class="sub">${promoHint(x)}</span>`:''}</span></label>
     <span class="ctl"><span class="qty"><button class="ghost" data-shq="-1" data-id="${x.id}" aria-label="Un de moins">−</button><b>${x.qty}</b><button class="ghost" data-shq="1" data-id="${x.id}" aria-label="Un de plus">+</button></span>
     ${x.price?`<span class="chip">${promo&&line<baseOf(x)?`<s>${euro(baseOf(x))}</s> `:''}${euro(line)}</span>`:''}
+    <button class="ghost" data-edit-open="${x.id}" aria-label="Modifier" title="Modifier le nom, le prix ou le rayon">✏️</button>
     ${x.price>0?`<button class="ghost" data-promo-open="${x.id}" aria-label="Promo" title="Ajouter ou changer une promo">🏷️</button>`:''}
     <button class="ghost" data-shdel="${x.id}" aria-label="Supprimer">✕</button></span>
-    ${shopPromoOpen===x.id?promoForm(x):''}</div>`; };
+    ${shopEditOpen===x.id?editForm(x):shopPromoOpen===x.id?promoForm(x):''}</div>`; };
   const groups=SHOP_CATS.map(([k,e,n])=>{ const g=it.filter(x=>x.cat===k).sort((a,b)=>a.done-b.done); if(!g.length) return '';
     const gl=g.filter(x=>!x.done&&!(x.price<0)).length;
     return `<div class="card routine"><h2>${e} ${n} <span class="chip">${gl?gl+' à prendre':'✓ tout pris'}</span></h2>${g.map(row).join('')}</div>`; }).join('');
@@ -1289,7 +1299,7 @@ function renderShop(){
     <form id="shopForm" class="row" style="margin-top:14px">
       <input id="shopText" placeholder="Ajouter un article…" autocomplete="off" style="flex:1;min-width:160px">
       <input id="shopQty" type="number" step="1" min="1" value="1" aria-label="Quantité" title="Quantité" style="width:64px;flex:none">
-      <input id="shopPrice" type="number" step="0.01" min="0" placeholder="Prix/u €" title="Prix à l'unité" style="width:96px;flex:none">
+      <input id="shopPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Prix/u €" title="Prix à l'unité" style="width:96px;flex:none">
       <select id="shopCat" aria-label="Rayon" style="width:auto;flex:none">${SHOP_CATS.map(([k,e,n])=>`<option value="${k}" ${k===(S.shop.lastCat||'autre')?'selected':''}>${e} ${n}</option>`).join('')}</select>
       <button class="primary">+</button></form>
     ${it.length?`<div class="row" style="justify-content:flex-start;margin-top:12px">
@@ -1306,8 +1316,10 @@ $('#tab-shop').addEventListener('change',e=>{
 });
 $('#tab-shop').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
-  if(b.dataset.promoOpen){ shopPromoOpen=shopPromoOpen===b.dataset.promoOpen?null:b.dataset.promoOpen; renderShop(); return; }
-  if(b.dataset.promoclose){ shopPromoOpen=null; renderShop(); return; }
+  if(b.dataset.editOpen){ shopEditOpen=shopEditOpen===b.dataset.editOpen?null:b.dataset.editOpen; shopPromoOpen=null; renderShop();
+    const i=shopEditOpen&&$('#tab-shop form[data-edit] [data-k=text]'); if(i) i.focus(); return; }
+  if(b.dataset.promoOpen){ shopPromoOpen=shopPromoOpen===b.dataset.promoOpen?null:b.dataset.promoOpen; shopEditOpen=null; renderShop(); return; }
+  if(b.dataset.promoclose){ shopPromoOpen=shopEditOpen=null; renderShop(); return; }
   if(b.dataset.promodel){ const x=S.shop.items.find(i=>i.id===b.dataset.promodel); if(x) delete x.promo; shopPromoOpen=null; save(); renderShop(); return; }
   if(b.dataset.shdel){ S.shop.items=S.shop.items.filter(i=>i.id!==b.dataset.shdel); save(); renderShop(); return; }
   if(b.dataset.shq){ const x=S.shop.items.find(i=>i.id===b.dataset.id); if(x){ x.qty=Math.max(1,(x.qty||1)+(+b.dataset.shq)); save(); renderShop(); } return; }
@@ -1318,6 +1330,14 @@ $('#tab-shop').addEventListener('click',e=>{
 });
 $('#tab-shop').addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.dataset.edit){ const f=e.target, x=S.shop.items.find(i=>i.id===f.dataset.edit); if(!x) return;
+    const text=f.querySelector('[data-k=text]').value.trim(); if(!text) return alert('Le nom ne peut pas être vide.');
+    const raw=String(f.querySelector('[data-k=price]').value).replace(',','.').trim(), price=raw===''?0:parseFloat(raw);
+    if(isNaN(price)||price<0) return alert('Prix invalide.');
+    x.text=text; x.cat=f.querySelector('[data-k=cat]').value;
+    if(!(x.price<0)) x.price=Math.round(price*100)/100; // une ligne de promo (prix négatif) garde son montant
+    if(!(x.price>0)) delete x.promo;
+    shopEditOpen=null; save(); renderShop(); pop('✏️'); return; }
   if(e.target.dataset.promo){ const f=e.target, x=S.shop.items.find(i=>i.id===f.dataset.promo); if(!x) return;
     const g=k=>parseFloat(String(f.querySelector(`[data-k=${k}]`).value).replace(',','.')), t=f.querySelector('[data-k=t]').value;
     if(t==='lot'){ const buy=Math.round(g('buy')), free=Math.round(g('free')); if(!(buy>=1&&free>=1)) return alert('Indique combien achetés et combien offerts (au moins 1).'); x.promo={t,buy,free}; }
@@ -1326,6 +1346,7 @@ $('#tab-shop').addEventListener('submit',e=>{
     shopPromoOpen=null; save(); renderShop(); pop('🏷️'); return; }
   const v=$('#shopText').value.trim(); if(!v) return;
   const cat=$('#shopCat').value, price=parseFloat(String($('#shopPrice').value).replace(',','.'));
+  if($('#shopPrice').value.trim()&&(isNaN(price)||price<0)) return alert('Prix invalide (exemple : 1,09).');
   const qty=Math.max(1,parseInt($('#shopQty').value,10)||1);
   S.shop.lastCat=cat; S.shop.items.push({id:uid(),cat,text:v,qty,price:isNaN(price)?0:price,done:false});
   save(); renderShop(); $('#shopText').focus();
