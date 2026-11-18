@@ -156,6 +156,13 @@ nav button.on{background:var(--pink);border-color:var(--pink-deep)}
 .stepper b{min-width:28px;text-align:center;font-size:1.25rem;font-family:var(--serif)}
 .stepper button{min-height:42px;width:46px;padding:0;font-size:1.4rem}
 .ideas button{min-height:40px;padding:8px 14px;font-size:.88rem}
+.shoprow{flex-wrap:wrap;row-gap:4px}
+.shoprow label{flex:1 1 180px;min-width:0}
+.shoprow label .t{min-width:0;overflow-wrap:anywhere}
+.shoprow .ctl{display:flex;align-items:center;gap:6px;margin-left:auto}
+.qty{display:flex;align-items:center;gap:2px;flex:none}
+.qty b{min-width:22px;text-align:center}
+.qty button{min-height:34px;width:34px;padding:0;font-size:1.15rem}
 details.card>summary{list-style:none;cursor:pointer}
 details.card>summary::-webkit-details-marker{display:none}
 .chev{color:var(--mute);transition:transform .2s var(--ease);display:inline-block}
@@ -278,6 +285,9 @@ details[open] .chev{transform:rotate(180deg)}
   <!-- MÉNAGE -->
   <section id="tab-home" class="hidden"></section>
 
+  <!-- COURSES -->
+  <section id="tab-shop" class="hidden"></section>
+
   <!-- ROUTINES -->
   <section id="tab-edit" class="hidden">
     <div id="editList"></div>
@@ -312,6 +322,7 @@ details[open] .chev{transform:rotate(180deg)}
   <button data-tab="focus"><span>🎯</span>Focus</button>
   <button data-tab="dump"><span>🧠</span>Vide-tête</button>
   <button data-tab="home"><span>🧹</span>Ménage</button>
+  <button data-tab="shop"><span>🛒</span>Courses</button>
   <button data-tab="stats"><span>📊</span>Bilan</button>
   <button data-tab="edit"><span>⚙️</span>Routines</button>
 </div></nav>
@@ -1169,12 +1180,91 @@ $('#tab-home').addEventListener('submit',e=>{
   homeOpen[f.dataset.room]=true; save(); renderHome();
 });
 
+/* ---------- Liste de courses ---------- */
+const SHOP_CATS=[['viande','🥩','Viandes'],['fruits','🥬','Fruits et légumes'],['pain','🥖','Pains'],['laitier','🥚','Produits laitiers et œufs'],
+  ['charcut','🥓','Charcuterie'],['surgele','❄️','Surgelés'],['sale','🥫','Épicerie salée'],['sucre','🍎','Épicerie sucrée'],
+  ['boisson','💧','Boissons'],['hygiene','🧴','Hygiène et maison'],['animal','🐱','Animalerie'],['autre','🛍️','Autre']];
+const SHOP_SEED=[
+  ['viande','Escalopes de dinde Eco+ x5 (600 g)',5.98],
+  ['fruits','Tomates rondes Eco+ (filet de 1 kg)',1.99],['fruits','Concombre',1.09],['fruits','Salade iceberg Eco+',0.99],
+  ['pain','Petits pains précuits Epi d’or x6, 4 paquets',3.96],
+  ['laitier','Œufs au sol Eco+ x10, 2 boîtes',3.64],['laitier','Matière grasse Rustica Oméga 3 (250 g)',0.99],['laitier','Crème légère Délisse 12 % (3 x 20 cl)',1.76],
+  ['laitier','La Vache qui rit 24 portions, 2 boîtes',7.48],['laitier','Liégeois chocolat Délisse (12 x 100 g)',3.14],
+  ['charcut','Allumettes de bacon fumées Tradilège, 2 paquets',3.38],
+  ['surgele','Crêpes demi-lune jambon-emmental Eco+ x20',2.22],['surgele','Feuilletés jambon-fromage Eco+ x10',2.53],
+  ['surgele','Purée 4 légumes Notre Jardin, 2 sachets',4.58],['surgele','Purée carottes-potiron Notre Jardin, 2 sachets',5.20],
+  ['surgele','Purée butternut-patate douce Notre Jardin, 2 sachets',6.98],['surgele','Burgers Eco+ x10 (1 kg)',7.89],['surgele','Cordons bleus de poulet Eco+ (800 g)',3.68],
+  ['sale','Pommes de terre grenaille Pom’lisse (450 g)',2.66],['sale','Soupes Knorr (crème de potiron, 9 légumes, Gourmet), 11 sachets (promo)',10.14],
+  ['sucre','Compotes pomme-banane Eco+ 4x100 g, 5 paquets',2.90],
+  ['boisson','Eau Cristaline 6 x 1,5 L',1.15],
+  ['animal','Croquettes chat stérilisé Ultima au saumon (3 kg)',11.32],['animal','Croquettes chat stérilisé Ultima au poulet (1,5 kg)',5.88],
+];
+/* Quantité : « …, 2 boîtes » dans le nom devient qty=2, et price devient le prix à l'unité */
+function shopQty(x){
+  if(x.qty) return x;
+  const m=String(x.text).match(/^(.*?),\s*(\d+)\s+(?:bo[iî]tes?|paquets?|sachets?)\b\s*(.*)$/i);
+  if(m){ x.qty=+m[2]; x.text=(m[1]+(m[3]?' '+m[3]:'')).trim(); x.price=(+x.price||0)/x.qty; } else x.qty=1;
+  return x;
+}
+if(!S.shop) S.shop={items:SHOP_SEED.map(([cat,text,price])=>({id:uid(),cat,text,price,done:false}))};
+S.shop.items.forEach(shopQty);
+const euro=n=>n.toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
+const lineOf=x=>(+x.price||0)*(x.qty||1);
+const sumOf=a=>a.reduce((t,x)=>t+lineOf(x),0);
+function renderShop(){
+  const it=S.shop.items, left=it.filter(x=>!x.done), got=it.filter(x=>x.done);
+  const row=x=>`<div class="step shoprow ${x.done?'done':''}"><label><input type="checkbox" data-sh="${x.id}" ${x.done?'checked':''}>
+    <span class="t">${esc(x.text)}${x.price&&x.qty>1?`<br><span class="sub">${x.qty} × ${euro(+x.price)}</span>`:''}</span></label>
+    <span class="ctl"><span class="qty"><button class="ghost" data-shq="-1" data-id="${x.id}" aria-label="Un de moins">−</button><b>${x.qty}</b><button class="ghost" data-shq="1" data-id="${x.id}" aria-label="Un de plus">+</button></span>
+    ${x.price?`<span class="chip">${euro(lineOf(x))}</span>`:''}
+    <button class="ghost" data-shdel="${x.id}" aria-label="Supprimer">✕</button></span></div>`;
+  const groups=SHOP_CATS.map(([k,e,n])=>{ const g=it.filter(x=>x.cat===k).sort((a,b)=>a.done-b.done); if(!g.length) return '';
+    const gl=g.filter(x=>!x.done).length;
+    return `<div class="card routine"><h2>${e} ${n} <span class="chip">${gl?gl+' à prendre':'✓ tout pris'}</span></h2>${g.map(row).join('')}</div>`; }).join('');
+  $('#tab-shop').innerHTML=`<div class="card"><h2>🛒 Ma liste de courses</h2>
+    <p class="sub">${it.length?(left.length?`<b>${left.length}</b> article${left.length>1?'s':''} à prendre · reste ~<b>${euro(sumOf(left))}</b> · total liste ~${euro(sumOf(it))}`:'🎉 Tout est dans le panier, bravo !'):'Ta liste est vide.'}</p>
+    ${it.length?`<div class="bar"><i style="width:${Math.round(got.length/it.length*100)}%"></i></div>`:''}
+    <form id="shopForm" class="row" style="margin-top:14px">
+      <input id="shopText" placeholder="Ajouter un article…" autocomplete="off" style="flex:1;min-width:160px">
+      <input id="shopQty" type="number" step="1" min="1" value="1" aria-label="Quantité" title="Quantité" style="width:64px;flex:none">
+      <input id="shopPrice" type="number" step="0.01" min="0" placeholder="Prix/u €" title="Prix à l'unité" style="width:96px;flex:none">
+      <select id="shopCat" aria-label="Rayon" style="width:auto;flex:none">${SHOP_CATS.map(([k,e,n])=>`<option value="${k}" ${k===(S.shop.lastCat||'autre')?'selected':''}>${e} ${n}</option>`).join('')}</select>
+      <button class="primary">+</button></form>
+    ${it.length?`<div class="row" style="justify-content:flex-start;margin-top:12px">
+      ${got.length?`<button data-shact="clear">🧺 Retirer les ${got.length} article${got.length>1?'s':''} pris</button><button data-shact="uncheck">↺ Tout décocher</button>`:''}
+      <button class="ghost" data-shact="empty">Vider la liste</button></div>`:''}</div>${groups}`;
+}
+$('#tab-shop').addEventListener('change',e=>{
+  const id=e.target.dataset.sh; if(!id) return;
+  const x=S.shop.items.find(i=>i.id===id); if(!x) return;
+  x.done=e.target.checked; if(x.done) pop(['🛒','✅','🥕','✨'][Math.floor(Math.random()*4)]);
+  if(x.done&&S.shop.items.every(i=>i.done)) setTimeout(()=>pop('🎉'),500);
+  save(); renderShop();
+});
+$('#tab-shop').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.shdel){ S.shop.items=S.shop.items.filter(i=>i.id!==b.dataset.shdel); save(); renderShop(); return; }
+  if(b.dataset.shq){ const x=S.shop.items.find(i=>i.id===b.dataset.id); if(x){ x.qty=Math.max(1,(x.qty||1)+(+b.dataset.shq)); save(); renderShop(); } return; }
+  const a=b.dataset.shact;
+  if(a==='clear'){ S.shop.items=S.shop.items.filter(i=>!i.done); save(); renderShop(); }
+  if(a==='uncheck'){ S.shop.items.forEach(i=>i.done=false); save(); renderShop(); }
+  if(a==='empty'&&confirm('Vider toute la liste de courses ?')){ S.shop.items=[]; save(); renderShop(); }
+});
+$('#tab-shop').addEventListener('submit',e=>{
+  e.preventDefault(); const v=$('#shopText').value.trim(); if(!v) return;
+  const cat=$('#shopCat').value, price=parseFloat(String($('#shopPrice').value).replace(',','.'));
+  const qty=Math.max(1,parseInt($('#shopQty').value,10)||1);
+  S.shop.lastCat=cat; S.shop.items.push({id:uid(),cat,text:v,qty,price:isNaN(price)?0:price,done:false});
+  save(); renderShop(); $('#shopText').focus();
+});
+
 /* ---------- Navigation ---------- */
 function renderAll(skipFocus){ renderHeader(); renderToday(); if(!skipFocus) renderFocus(); }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-  ['today','focus','dump','stats','home','edit'].forEach(t=>$('#tab-'+t).classList.toggle('hidden',t!==b.dataset.tab));
+  ['today','focus','dump','stats','home','shop','edit'].forEach(t=>$('#tab-'+t).classList.toggle('hidden',t!==b.dataset.tab));
   if(b.dataset.tab==='stats') renderStats();
+  if(b.dataset.tab==='shop') renderShop();
   if(b.dataset.tab==='home') renderHome();
   if(b.dataset.tab==='focus') renderFocus();
   if(b.dataset.tab==='dump') renderDump();
