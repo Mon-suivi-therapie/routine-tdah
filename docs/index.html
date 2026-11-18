@@ -1186,10 +1186,10 @@ const SHOP_CATS=[['viande','🥩','Viandes'],['fruits','🥬','Fruits et légume
   ['boisson','💧','Boissons'],['hygiene','🧴','Hygiène et maison'],['animal','🐱','Animalerie'],['autre','🛍️','Autre']];
 /* Soupes Knorr : 3 sortes différentes (prix à l'unité, quantité), + la promo du lot */
 const SOUPS=[
-  ['sale','Soupe Knorr crème de potiron (déshydratée, 1 L)',1.20,6],
+  ['sale','Soupe Knorr crème de potiron (déshydratée, 1 L)',1.20,3],
   ['sale','Soupe Knorr 9 légumes (déshydratée, 75 cl)',0.84,3],
   ['sale','Soupe Knorr Gourmet (déshydratée, 93 g)',1.78,3],
-  ['sale','🏷️ Promo soupes Knorr (3 offertes)',-4.92,1],
+  ['sale','🏷️ Promo soupes Knorr (2 offertes)',-3.72,1],
 ];
 const SHOP_SEED=[
   ['viande','Escalopes de dinde Eco+ x5 (600 g)',5.98],
@@ -1215,12 +1215,19 @@ function shopQty(x){
   return x;
 }
 const shopItem=([cat,text,price,qty])=>({id:uid(),cat,text,price,...(qty?{qty}:{}),done:false});
-if(!S.shop) S.shop={items:SHOP_SEED.map(shopItem),soups:1};
+if(!S.shop) S.shop={items:SHOP_SEED.map(shopItem),soups:2};
 S.shop.items.forEach(shopQty);
 if(!S.shop.soups){ // ancienne ligne unique « Soupes Knorr … » → 3 soupes séparées + promo
   S.shop.soups=1;
   const i=S.shop.items.findIndex(x=>/^Soupes Knorr/i.test(x.text));
   if(i>=0) S.shop.items.splice(i,1,...SOUPS.map(shopItem));
+  save();
+}
+if(S.shop.soups<2){ // panier modifié : 3 soupes potiron au lieu de 6, promo « 2 offertes » (−3,72 €)
+  S.shop.soups=2;
+  const pot=S.shop.items.find(x=>/^Soupe Knorr crème de potiron/i.test(x.text)), promo=S.shop.items.find(x=>/^🏷️ Promo soupes Knorr/.test(x.text));
+  if(pot&&pot.qty===6) pot.qty=3;
+  if(promo&&Math.abs(promo.price+4.92)<0.001){ promo.price=-3.72; promo.text='🏷️ Promo soupes Knorr (2 offertes)'; }
   save();
 }
 const euro=n=>n.toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
