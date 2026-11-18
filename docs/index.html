@@ -1184,6 +1184,13 @@ $('#tab-home').addEventListener('submit',e=>{
 const SHOP_CATS=[['viande','🥩','Viandes'],['fruits','🥬','Fruits et légumes'],['pain','🥖','Pains'],['laitier','🥚','Produits laitiers et œufs'],
   ['charcut','🥓','Charcuterie'],['surgele','❄️','Surgelés'],['sale','🥫','Épicerie salée'],['sucre','🍎','Épicerie sucrée'],
   ['boisson','💧','Boissons'],['hygiene','🧴','Hygiène et maison'],['animal','🐱','Animalerie'],['autre','🛍️','Autre']];
+/* Soupes Knorr : 3 sortes différentes (prix à l'unité, quantité), + la promo du lot */
+const SOUPS=[
+  ['sale','Soupe Knorr crème de potiron (déshydratée, 1 L)',1.20,6],
+  ['sale','Soupe Knorr 9 légumes (déshydratée, 75 cl)',0.84,3],
+  ['sale','Soupe Knorr Gourmet (déshydratée, 93 g)',1.78,3],
+  ['sale','🏷️ Promo soupes Knorr (3 offertes)',-4.92,1],
+];
 const SHOP_SEED=[
   ['viande','Escalopes de dinde Eco+ x5 (600 g)',5.98],
   ['fruits','Tomates rondes Eco+ (filet de 1 kg)',1.99],['fruits','Concombre',1.09],['fruits','Salade iceberg Eco+',0.99],
@@ -1194,7 +1201,8 @@ const SHOP_SEED=[
   ['surgele','Crêpes demi-lune jambon-emmental Eco+ x20',2.22],['surgele','Feuilletés jambon-fromage Eco+ x10',2.53],
   ['surgele','Purée 4 légumes Notre Jardin, 2 sachets',4.58],['surgele','Purée carottes-potiron Notre Jardin, 2 sachets',5.20],
   ['surgele','Purée butternut-patate douce Notre Jardin, 2 sachets',6.98],['surgele','Burgers Eco+ x10 (1 kg)',7.89],['surgele','Cordons bleus de poulet Eco+ (800 g)',3.68],
-  ['sale','Pommes de terre grenaille Pom’lisse (450 g)',2.66],['sale','Soupes Knorr (crème de potiron, 9 légumes, Gourmet), 11 sachets (promo)',10.14],
+  ['sale','Pommes de terre grenaille Pom’lisse (450 g)',2.66],
+  ...SOUPS,
   ['sucre','Compotes pomme-banane Eco+ 4x100 g, 5 paquets',2.90],
   ['boisson','Eau Cristaline 6 x 1,5 L',1.15],
   ['animal','Croquettes chat stérilisé Ultima au saumon (3 kg)',11.32],['animal','Croquettes chat stérilisé Ultima au poulet (1,5 kg)',5.88],
@@ -1206,23 +1214,30 @@ function shopQty(x){
   if(m){ x.qty=+m[2]; x.text=(m[1]+(m[3]?' '+m[3]:'')).trim(); x.price=(+x.price||0)/x.qty; } else x.qty=1;
   return x;
 }
-if(!S.shop) S.shop={items:SHOP_SEED.map(([cat,text,price])=>({id:uid(),cat,text,price,done:false}))};
+const shopItem=([cat,text,price,qty])=>({id:uid(),cat,text,price,...(qty?{qty}:{}),done:false});
+if(!S.shop) S.shop={items:SHOP_SEED.map(shopItem),soups:1};
 S.shop.items.forEach(shopQty);
+if(!S.shop.soups){ // ancienne ligne unique « Soupes Knorr … » → 3 soupes séparées + promo
+  S.shop.soups=1;
+  const i=S.shop.items.findIndex(x=>/^Soupes Knorr/i.test(x.text));
+  if(i>=0) S.shop.items.splice(i,1,...SOUPS.map(shopItem));
+  save();
+}
 const euro=n=>n.toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
 const lineOf=x=>(+x.price||0)*(x.qty||1);
 const sumOf=a=>a.reduce((t,x)=>t+lineOf(x),0);
 function renderShop(){
-  const it=S.shop.items, left=it.filter(x=>!x.done), got=it.filter(x=>x.done);
+  const it=S.shop.items, left=it.filter(x=>!x.done), got=it.filter(x=>x.done), nLeft=left.filter(x=>!(x.price<0)).length; // une ligne de promo n'est pas un article
   const row=x=>`<div class="step shoprow ${x.done?'done':''}"><label><input type="checkbox" data-sh="${x.id}" ${x.done?'checked':''}>
     <span class="t">${esc(x.text)}${x.price&&x.qty>1?`<br><span class="sub">${x.qty} × ${euro(+x.price)}</span>`:''}</span></label>
     <span class="ctl"><span class="qty"><button class="ghost" data-shq="-1" data-id="${x.id}" aria-label="Un de moins">−</button><b>${x.qty}</b><button class="ghost" data-shq="1" data-id="${x.id}" aria-label="Un de plus">+</button></span>
     ${x.price?`<span class="chip">${euro(lineOf(x))}</span>`:''}
     <button class="ghost" data-shdel="${x.id}" aria-label="Supprimer">✕</button></span></div>`;
   const groups=SHOP_CATS.map(([k,e,n])=>{ const g=it.filter(x=>x.cat===k).sort((a,b)=>a.done-b.done); if(!g.length) return '';
-    const gl=g.filter(x=>!x.done).length;
+    const gl=g.filter(x=>!x.done&&!(x.price<0)).length;
     return `<div class="card routine"><h2>${e} ${n} <span class="chip">${gl?gl+' à prendre':'✓ tout pris'}</span></h2>${g.map(row).join('')}</div>`; }).join('');
   $('#tab-shop').innerHTML=`<div class="card"><h2>🛒 Ma liste de courses</h2>
-    <p class="sub">${it.length?(left.length?`<b>${left.length}</b> article${left.length>1?'s':''} à prendre · reste ~<b>${euro(sumOf(left))}</b> · total liste ~${euro(sumOf(it))}`:'🎉 Tout est dans le panier, bravo !'):'Ta liste est vide.'}</p>
+    <p class="sub">${it.length?(left.length?`<b>${nLeft}</b> article${nLeft>1?'s':''} à prendre · reste ~<b>${euro(sumOf(left))}</b> · total liste ~${euro(sumOf(it))}`:'🎉 Tout est dans le panier, bravo !'):'Ta liste est vide.'}</p>
     ${it.length?`<div class="bar"><i style="width:${Math.round(got.length/it.length*100)}%"></i></div>`:''}
     <form id="shopForm" class="row" style="margin-top:14px">
       <input id="shopText" placeholder="Ajouter un article…" autocomplete="off" style="flex:1;min-width:160px">
