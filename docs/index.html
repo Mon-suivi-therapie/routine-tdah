@@ -159,7 +159,12 @@ nav button.on{background:var(--pink);border-color:var(--pink-deep)}
 .shoprow{flex-wrap:wrap;row-gap:4px}
 .shoprow label{flex:1 1 180px;min-width:0}
 .shoprow label .t{min-width:0;overflow-wrap:anywhere}
-.shoprow .ctl{display:flex;align-items:center;gap:6px;margin-left:auto}
+.shoprow .ctl{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:4px 6px;margin-left:auto;max-width:100%}
+.promochip{display:inline-block;margin-top:4px;background:#fde9c8;color:#4a2f06;border-color:#f3c677}
+.promoform{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--soft);border-radius:16px;padding:12px;margin-top:6px}
+.promoform select{width:auto;flex:1 1 220px}
+.promoform input[type=number]{width:72px}
+.promoform [hidden]{display:none}
 .qty{display:flex;align-items:center;gap:2px;flex:none}
 .qty b{min-width:22px;text-align:center}
 .qty button{min-height:34px;width:34px;padding:0;font-size:1.15rem}
@@ -1231,20 +1236,55 @@ if(S.shop.soups<2){ // panier modifié : 3 soupes potiron au lieu de 6, promo «
   save();
 }
 const euro=n=>n.toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
-const lineOf=x=>(+x.price||0)*(x.qty||1);
+/* Promos par article : x.promo = {t:'lot',buy,free} (2 achetés + 1 offert) | {t:'pct',v} (−v %) | {t:'eur',v} (−v € sur la ligne) */
+const baseOf=x=>(+x.price||0)*(x.qty||1);
+function lineOf(x){
+  const p=x.promo, base=baseOf(x), q=x.qty||1, u=+x.price||0; if(!p||!(u>0)) return base;
+  if(p.t==='lot'){ const n=p.buy+p.free; return (q-Math.floor(q/n)*p.free)*u; }
+  if(p.t==='pct') return base*(1-Math.min(100,p.v)/100);
+  if(p.t==='eur') return Math.max(0,base-p.v);
+  return base;
+}
 const sumOf=a=>a.reduce((t,x)=>t+lineOf(x),0);
+const promoTxt=p=>p.t==='lot'?`${p.buy} acheté${p.buy>1?'s':''} + ${p.free} offert${p.free>1?'s':''}`:p.t==='pct'?`−${String(p.v).replace('.',',')} %`:`−${euro(p.v)}`;
+function promoHint(x){ // lot pas encore complet : dire combien en ajouter pour en avoir un gratuit
+  const p=x.promo; if(!p||p.t!=='lot') return ''; const n=p.buy+p.free, r=(x.qty||1)%n;
+  if(r===0) return ''; if(r>=p.buy) return ` 💡 +${n-r} = gratuit${n-r>1?'s':''}`;
+  return ` encore ${p.buy-r} pour la promo`;
+}
+let shopPromoOpen=null;
+function promoForm(x){
+  const p=x.promo||{t:'lot',buy:2,free:1}, t=p.t;
+  return `<form class="promoform" data-promo="${x.id}">
+    <select data-k="t" aria-label="Type de promo">
+      <option value="lot" ${t==='lot'?'selected':''}>🎁 X achetés + Y offerts</option>
+      <option value="pct" ${t==='pct'?'selected':''}>％ Pourcentage en moins</option>
+      <option value="eur" ${t==='eur'?'selected':''}>€ Montant en moins</option></select>
+    <span data-for="lot" ${t!=='lot'?'hidden':''}><input data-k="buy" type="number" min="1" step="1" value="${p.buy||2}" aria-label="Nombre achetés"> achetés +
+      <input data-k="free" type="number" min="1" step="1" value="${p.free||1}" aria-label="Nombre offerts"> offert(s)</span>
+    <span data-for="pct" ${t!=='pct'?'hidden':''}>− <input data-k="pct" type="number" min="1" max="100" step="1" value="${t==='pct'?p.v:20}" aria-label="Pourcentage"> %</span>
+    <span data-for="eur" ${t!=='eur'?'hidden':''}>− <input data-k="eur" type="number" min="0.01" step="0.01" value="${t==='eur'?p.v:1}" aria-label="Euros en moins"> € sur la ligne</span>
+    <span class="row" style="justify-content:flex-start;width:100%">
+      <button class="primary">Appliquer</button>
+      ${x.promo?`<button type="button" class="ghost" data-promodel="${x.id}">Retirer la promo</button>`:''}
+      <button type="button" class="ghost" data-promoclose="1">Annuler</button></span></form>`;
+}
 function renderShop(){
   const it=S.shop.items, left=it.filter(x=>!x.done), got=it.filter(x=>x.done), nLeft=left.filter(x=>!(x.price<0)).length; // une ligne de promo n'est pas un article
-  const row=x=>`<div class="step shoprow ${x.done?'done':''}"><label><input type="checkbox" data-sh="${x.id}" ${x.done?'checked':''}>
-    <span class="t">${esc(x.text)}${x.price&&x.qty>1?`<br><span class="sub">${x.qty} × ${euro(+x.price)}</span>`:''}</span></label>
+  const saved=it.reduce((t,x)=>t+baseOf(x)-lineOf(x),0);
+  const row=x=>{ const promo=x.promo&&x.price>0, line=lineOf(x);
+    return `<div class="step shoprow ${x.done?'done':''}"><label><input type="checkbox" data-sh="${x.id}" ${x.done?'checked':''}>
+    <span class="t">${esc(x.text)}${x.price&&x.qty>1?`<br><span class="sub">${x.qty} × ${euro(+x.price)}</span>`:''}${promo?`<br><span class="chip promochip">🏷️ ${promoTxt(x.promo)}</span><span class="sub">${promoHint(x)}</span>`:''}</span></label>
     <span class="ctl"><span class="qty"><button class="ghost" data-shq="-1" data-id="${x.id}" aria-label="Un de moins">−</button><b>${x.qty}</b><button class="ghost" data-shq="1" data-id="${x.id}" aria-label="Un de plus">+</button></span>
-    ${x.price?`<span class="chip">${euro(lineOf(x))}</span>`:''}
-    <button class="ghost" data-shdel="${x.id}" aria-label="Supprimer">✕</button></span></div>`;
+    ${x.price?`<span class="chip">${promo&&line<baseOf(x)?`<s>${euro(baseOf(x))}</s> `:''}${euro(line)}</span>`:''}
+    ${x.price>0?`<button class="ghost" data-promo-open="${x.id}" aria-label="Promo" title="Ajouter ou changer une promo">🏷️</button>`:''}
+    <button class="ghost" data-shdel="${x.id}" aria-label="Supprimer">✕</button></span>
+    ${shopPromoOpen===x.id?promoForm(x):''}</div>`; };
   const groups=SHOP_CATS.map(([k,e,n])=>{ const g=it.filter(x=>x.cat===k).sort((a,b)=>a.done-b.done); if(!g.length) return '';
     const gl=g.filter(x=>!x.done&&!(x.price<0)).length;
     return `<div class="card routine"><h2>${e} ${n} <span class="chip">${gl?gl+' à prendre':'✓ tout pris'}</span></h2>${g.map(row).join('')}</div>`; }).join('');
   $('#tab-shop').innerHTML=`<div class="card"><h2>🛒 Ma liste de courses</h2>
-    <p class="sub">${it.length?(left.length?`<b>${nLeft}</b> article${nLeft>1?'s':''} à prendre · reste ~<b>${euro(sumOf(left))}</b> · total liste ~${euro(sumOf(it))}`:'🎉 Tout est dans le panier, bravo !'):'Ta liste est vide.'}</p>
+    <p class="sub">${it.length?(left.length?`<b>${nLeft}</b> article${nLeft>1?'s':''} à prendre · reste ~<b>${euro(sumOf(left))}</b> · total liste ~${euro(sumOf(it))}${saved>0.004?` · 🏷️ ${euro(saved)} économisés`:''}`:'🎉 Tout est dans le panier, bravo !'):'Ta liste est vide.'}</p>
     ${it.length?`<div class="bar"><i style="width:${Math.round(got.length/it.length*100)}%"></i></div>`:''}
     <form id="shopForm" class="row" style="margin-top:14px">
       <input id="shopText" placeholder="Ajouter un article…" autocomplete="off" style="flex:1;min-width:160px">
@@ -1257,6 +1297,7 @@ function renderShop(){
       <button class="ghost" data-shact="empty">Vider la liste</button></div>`:''}</div>${groups}`;
 }
 $('#tab-shop').addEventListener('change',e=>{
+  if(e.target.dataset.k==='t'){ const f=e.target.form; f.querySelectorAll('[data-for]').forEach(s=>s.hidden=s.dataset.for!==e.target.value); return; }
   const id=e.target.dataset.sh; if(!id) return;
   const x=S.shop.items.find(i=>i.id===id); if(!x) return;
   x.done=e.target.checked; if(x.done) pop(['🛒','✅','🥕','✨'][Math.floor(Math.random()*4)]);
@@ -1265,6 +1306,9 @@ $('#tab-shop').addEventListener('change',e=>{
 });
 $('#tab-shop').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.promoOpen){ shopPromoOpen=shopPromoOpen===b.dataset.promoOpen?null:b.dataset.promoOpen; renderShop(); return; }
+  if(b.dataset.promoclose){ shopPromoOpen=null; renderShop(); return; }
+  if(b.dataset.promodel){ const x=S.shop.items.find(i=>i.id===b.dataset.promodel); if(x) delete x.promo; shopPromoOpen=null; save(); renderShop(); return; }
   if(b.dataset.shdel){ S.shop.items=S.shop.items.filter(i=>i.id!==b.dataset.shdel); save(); renderShop(); return; }
   if(b.dataset.shq){ const x=S.shop.items.find(i=>i.id===b.dataset.id); if(x){ x.qty=Math.max(1,(x.qty||1)+(+b.dataset.shq)); save(); renderShop(); } return; }
   const a=b.dataset.shact;
@@ -1273,7 +1317,14 @@ $('#tab-shop').addEventListener('click',e=>{
   if(a==='empty'&&confirm('Vider toute la liste de courses ?')){ S.shop.items=[]; save(); renderShop(); }
 });
 $('#tab-shop').addEventListener('submit',e=>{
-  e.preventDefault(); const v=$('#shopText').value.trim(); if(!v) return;
+  e.preventDefault();
+  if(e.target.dataset.promo){ const f=e.target, x=S.shop.items.find(i=>i.id===f.dataset.promo); if(!x) return;
+    const g=k=>parseFloat(String(f.querySelector(`[data-k=${k}]`).value).replace(',','.')), t=f.querySelector('[data-k=t]').value;
+    if(t==='lot'){ const buy=Math.round(g('buy')), free=Math.round(g('free')); if(!(buy>=1&&free>=1)) return alert('Indique combien achetés et combien offerts (au moins 1).'); x.promo={t,buy,free}; }
+    if(t==='pct'){ const v=g('pct'); if(!(v>0&&v<=100)) return alert('Le pourcentage doit être entre 1 et 100.'); x.promo={t,v}; }
+    if(t==='eur'){ const v=g('eur'); if(!(v>0)) return alert('Indique un montant en euros.'); x.promo={t,v:Math.round(v*100)/100}; }
+    shopPromoOpen=null; save(); renderShop(); pop('🏷️'); return; }
+  const v=$('#shopText').value.trim(); if(!v) return;
   const cat=$('#shopCat').value, price=parseFloat(String($('#shopPrice').value).replace(',','.'));
   const qty=Math.max(1,parseInt($('#shopQty').value,10)||1);
   S.shop.lastCat=cat; S.shop.items.push({id:uid(),cat,text:v,qty,price:isNaN(price)?0:price,done:false});
