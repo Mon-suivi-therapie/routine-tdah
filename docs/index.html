@@ -182,6 +182,8 @@ label.chip.pick input{width:18px;height:18px;min-height:0;padding:0;margin:0;fle
 .meal.eaten .mtext{text-decoration:line-through;color:var(--mute)}
 .evh{font-size:1rem;margin:16px 0 4px;display:flex;gap:8px;align-items:center}
 .awaycard{border:2px solid #f3c677;background:#fff8ea}
+.freqed{background:var(--soft);border-radius:14px;padding:10px 12px;margin:4px 0 10px}
+button.storechip{cursor:pointer;min-height:28px}
 @media (prefers-color-scheme:dark){ .awaycard{background:#3a2c18} }
 /* Mes comptes + budget courses */
 .budget{border-left:6px solid var(--ok)}
@@ -1002,6 +1004,30 @@ const ROOM_TYPES={
   garage:{emoji:'🚗',name:'Garage',tasks:[['Sortir les poubelles / cartons','m',5],['Balayer le sol','m',10],['Ranger outils et affaires qui traînent','m',10]]},
 };
 const FREQ={d:{label:'tous les jours',n:1},o:{label:'un jour sur deux',n:2},t:{label:'tous les 3 jours',n:3},w:{label:'chaque semaine',n:7},b:{label:'toutes les 2 semaines',n:14},m:{label:'chaque mois',n:30}};
+/* Répétitions précises : f='j' + days=[n° getDay] (ex. lundi, mercredi, vendredi) ; f='x' + dom=jour du mois (ex. le 5) */
+const WD_SHORT=['dim','lun','mar','mer','jeu','ven','sam'], WD_ORDER=[1,2,3,4,5,6,0];
+const isoOfDate=d=>d.toLocaleDateString('sv');
+function freqLabel(t){
+  if(t.f==='j'){ const d=WD_ORDER.filter(x=>(t.days||[]).includes(x)); return d.length===7?'tous les jours':d.length?'📅 '+d.map(x=>WD_SHORT[x]).join(' · '):'📅 jours ?'; }
+  if(t.f==='x') return `🗓️ le ${(t.dom||1)===1?'1er':t.dom||1} du mois`;
+  return (FREQ[t.f]||FREQ.w).label;
+}
+const freqN=t=>t.f==='j'?7/Math.max(1,(t.days||[]).length):t.f==='x'?30:(FREQ[t.f]||FREQ.w).n;
+function lastOcc(t){ // dernière date prévue ≤ aujourd'hui
+  const now=new Date(todayKey()+'T12:00:00');
+  if(t.f==='j'){ const ds=t.days||[]; for(let i=0;i<7;i++){ const d=new Date(now); d.setDate(d.getDate()-i); if(ds.includes(d.getDay())) return isoOfDate(d); } return null; }
+  const occ=(y,m)=>new Date(y,m,Math.min(t.dom||1,new Date(y,m+1,0).getDate()),12);
+  let d=occ(now.getFullYear(),now.getMonth()); if(d>now) d=occ(now.getFullYear(),now.getMonth()-1); return isoOfDate(d);
+}
+let freqEdit=null;
+function freqEditor(t){
+  const pre=Object.entries(FREQ).map(([k,v])=>`<button class="chip ${t.f===k?'on':''}" data-fset="${t.id}|${k}">${v.label}</button>`).join('');
+  return `<div class="freqed"><p class="sub" style="margin:0 0 6px">🔁 Quand faire « ${esc(t.text)} » ?</p>
+    <div class="chips">${pre}<button class="chip ${t.f==='j'?'on':''}" data-fset="${t.id}|j">📅 Certains jours</button><button class="chip ${t.f==='x'?'on':''}" data-fset="${t.id}|x">🗓️ Un jour du mois</button></div>
+    ${t.f==='j'?`<div class="chips">${WD_ORDER.map(x=>`<button class="chip ${(t.days||[]).includes(x)?'on':''}" data-fday="${t.id}|${x}">${WD_SHORT[x]}</button>`).join('')}</div><p class="sub" style="margin:0 0 6px">Touche les jours où tu veux le faire (ex. lun · mer · ven).</p>`:''}
+    ${t.f==='x'?`<label class="sub" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">Le <input type="number" min="1" max="31" inputmode="numeric" data-fdom="${t.id}" value="${t.dom||1}" style="width:70px"> de chaque mois</label><p class="sub" style="margin:0 0 6px">31 = dernier jour du mois s'il est plus court.</p>`:''}
+    <button class="primary" data-fclose="1">✓ OK</button></div>`;
+}
 const MOVE_STEPS={
   default:['Trier : garder / donner / jeter','Emballer','Étiqueter les cartons (pièce + contenu)','Nettoyer à fond'],
   cuisine:['Trier : garder / donner / jeter','Vider et dégivrer le frigo','Emballer','Étiqueter les cartons (pièce + contenu)','Nettoyer à fond'],
@@ -1029,14 +1055,18 @@ function countsFromHome(){
   return c;
 }
 function findTask(id){ for(const room of S.home.rooms){ const t=room.tasks.find(x=>x.id===id); if(t) return {t,room}; } return null; }
-const weekMin=()=>S.home.rooms.reduce((a,r)=>a+r.tasks.reduce((b,t)=>b+(+t.min||0)*7/FREQ[t.f].n,0),0);
+const weekMin=()=>S.home.rooms.reduce((a,r)=>a+r.tasks.reduce((b,t)=>b+(+t.min||0)*7/freqN(t),0),0);
 // Budget du jour : s'adapte au nombre de pièces (plus de pièces = un peu plus par jour, jamais beaucoup)
 function dayBudget(){ if(S.energy==='low') return 10; return Math.min(25,Math.max(15,Math.ceil(weekMin()/6))); }
 const tooBig=()=>weekMin()>dayBudget()*7; // logement trop grand pour tout faire à ce rythme
 function dueTasks(){
   const out=[];
   S.home.rooms.forEach((room,ri)=>room.tasks.forEach((t,ti)=>{
-    const ds=daysSince(S.home.last[t.id]), n=FREQ[t.f].n;
+    const last=S.home.last[t.id];
+    if(t.f==='j'||t.f==='x'){ // jour prévu : prioritaire ; un jour raté reste proposé jusqu'à la prochaine fois
+      const o=lastOcc(t); if(!o) return;
+      if(last?last<o:o===todayKey()) out.push({t,room,fixed:true,score:5+daysSince(o),ord:ri*100+ti}); return; }
+    const ds=daysSince(last), n=FREQ[t.f].n;
     if(ds>=n) out.push({t,room,score:(ds===Infinity?2:ds/n),ord:ri*100+ti});
   }));
   return out.sort((a,b)=>b.score-a.score||a.ord-b.ord);
@@ -1045,7 +1075,7 @@ function pickToday(){ // la liste du jour est figée : cocher ne fait pas appara
   const H=S.home, k=todayKey();
   if(H.pick && H.pick.date===k){ H.pick.ids=H.pick.ids.filter(findTask); return; }
   const budget=dayBudget(), max=S.energy==='low'?3:6; let used=0; const ids=[];
-  for(const x of dueTasks()){ if(ids.length>=max) break; if(ids.length&&used+x.t.min>budget) continue; ids.push(x.t.id); used+=x.t.min; }
+  for(const x of dueTasks()){ if(ids.length>=max) break; if(!x.fixed&&ids.length&&used+x.t.min>budget) continue; ids.push(x.t.id); used+=x.t.min; }
   H.pick={date:k,ids}; save();
 }
 function pickMore(){ const H=S.home, x=dueTasks().find(d=>!H.pick.ids.includes(d.t.id)); if(x){ H.pick.ids.push(x.t.id); save(); } }
@@ -1076,11 +1106,11 @@ function cleanHtml(){
   ${H.rooms.map(r=>`<details class="card" data-rid="${r.id}" ${homeOpen[r.id]?'open':''}>
     <summary style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${r.emoji} ${esc(r.name)}</b><span style="display:flex;gap:8px;align-items:center"><span class="chip">${r.tasks.length} tâche${r.tasks.length>1?'s':''}</span><span class="chev">▾</span></span></summary>
     ${r.tasks.map(t=>`<div class="step"><span class="t" style="flex:1">${esc(t.text)}<br><span class="sub">${agoTxt(H.last[t.id])}</span></span>
-      <button class="chip" data-freq="${t.id}" title="Changer la fréquence" style="border:0;min-height:32px">${FREQ[t.f].label}</button>${minBtn('hmin',t.id,t.min)}
-      <button class="ghost" data-hdel="${t.id}" aria-label="Supprimer">✕</button></div>`).join('')}
+      <button class="chip ${freqEdit===t.id?'on':''}" data-freq="${t.id}" title="Changer quand le faire" style="border:0;min-height:32px">${freqLabel(t)} ✎</button>${minBtn('hmin',t.id,t.min)}
+      <button class="ghost" data-hdel="${t.id}" aria-label="Supprimer">✕</button></div>${freqEdit===t.id?freqEditor(t):''}`).join('')}
     <form data-room="${r.id}" class="row" style="flex-wrap:nowrap;margin-top:10px"><input placeholder="Ajouter une tâche à cette pièce…" autocomplete="off">
       <select data-k="min" aria-label="Durée" style="width:auto;flex:none">${HOME_MINS.map(m=>`<option value="${m}" ${m===5?'selected':''}>${m} min</option>`).join('')}</select>
-      <select data-k="f" aria-label="Fréquence" style="width:auto;flex:none">${Object.entries(FREQ).map(([k,v])=>`<option value="${k}" ${k==='w'?'selected':''}>${v.label}</option>`).join('')}</select><button class="primary">+</button></form></details>`).join('')}
+      <select data-k="f" aria-label="Fréquence" style="width:auto;flex:none">${Object.entries(FREQ).map(([k,v])=>`<option value="${k}" ${k==='w'?'selected':''}>${v.label}</option>`).join('')}<option value="j">📅 certains jours…</option><option value="x">🗓️ un jour du mois…</option></select><button class="primary">+</button></form></details>`).join('')}
   <div class="card"><h2>⚙️ Mon logement</h2><p class="sub">${H.rooms.length} pièces · environ ${Math.round(weekMin())} min de ménage par semaine, réparties sur les jours.${tooBig()?'<br>🏡 Ton logement est grand : à ~'+dayBudget()+' min par jour, certaines tâches reviendront un peu moins souvent que prévu. Pas grave : mieux vaut peu et régulier que tout d\'un coup. Tu peux aussi supprimer ou espacer des tâches dans « Mes pièces ».':''}</p>
     <div class="row" style="justify-content:flex-start"><button data-act="homeEdit">✏️ Changer mes pièces / j'ai déménagé</button></div></div>`;
 }
@@ -1213,7 +1243,13 @@ $('#tab-home').addEventListener('click',e=>{
   if(b.dataset.hmin){ const x=findTask(b.dataset.hmin); x.t.min=nextMin(x.t.min); save(); renderHome(); return; }
   if(b.dataset.smin){ const sp=springOf(), id=b.dataset.smin, cur=springUnits().flatMap(u=>u.steps).find(s=>s.id===id);
     (sp.mins||(sp.mins={}))[id]=nextMin(cur&&cur.min); save(); renderHome(); return; }
-  if(b.dataset.freq){ const x=findTask(b.dataset.freq); x.t.f={d:'o',o:'t',t:'w',w:'b',b:'m',m:'d'}[x.t.f]||'w'; save(); renderHome(); return; }
+  if(b.dataset.freq){ freqEdit=freqEdit===b.dataset.freq?null:b.dataset.freq; renderHome(); return; }
+  if(b.dataset.fclose){ freqEdit=null; renderHome(); return; }
+  if(b.dataset.fset){ const [id,f]=b.dataset.fset.split('|'), x=findTask(id), now=new Date();
+    x.t.f=f; if(f==='j'&&!(x.t.days||[]).length) x.t.days=[now.getDay()]; if(f==='x'&&!x.t.dom) x.t.dom=now.getDate();
+    save(); renderHome(); return; }
+  if(b.dataset.fday){ const [id,dd]=b.dataset.fday.split('|'), x=findTask(id), n=+dd, ds=x.t.days||(x.t.days=[]);
+    if(ds.includes(n)){ if(ds.length>1) ds.splice(ds.indexOf(n),1); } else ds.push(n); save(); renderHome(); return; }
   if(b.dataset.hdel){ const x=findTask(b.dataset.hdel); x.room.tasks=x.room.tasks.filter(t=>t!==x.t); save(); renderHome(); return; }
 });
 $('#tab-home').addEventListener('change',e=>{
@@ -1229,12 +1265,16 @@ $('#tab-home').addEventListener('change',e=>{
     if(e.target.checked){ sp.done[id]=true; pop(['🌸','✨','🧽','🌟'][Math.floor(Math.random()*4)]); } else delete sp.done[id];
     setDone('s_'+id,e.target.checked); save(); renderHome(); renderHeader(); return;
   }
+  if(e.target.dataset.fdom){ const x=findTask(e.target.dataset.fdom), n=Math.round(+e.target.value);
+    if(n>=1&&n<=31){ x.t.dom=n; save(); } renderHome(); return; }
   if(e.target.dataset.mv){ const id=e.target.dataset.mv; if(e.target.checked) H.mv[id]=true; else delete H.mv[id]; save(); renderHome(); }
 });
 $('#tab-home').addEventListener('submit',e=>{
   e.preventDefault(); const f=e.target; if(!f.dataset.room) return;
   const inp=f.querySelector('input'), v=inp.value.trim(); if(!v) return;
-  S.home.rooms.find(r=>r.id===f.dataset.room).tasks.push({id:uid(),text:v,f:f.querySelector('[data-k=f]').value||'w',min:+f.querySelector('[data-k=min]').value||5});
+  const fq=f.querySelector('[data-k=f]').value||'w', now=new Date(), nt={id:uid(),text:v,f:fq,min:+f.querySelector('[data-k=min]').value||5};
+  if(fq==='j'){ nt.days=[now.getDay()]; freqEdit=nt.id; } if(fq==='x'){ nt.dom=now.getDate(); freqEdit=nt.id; }
+  S.home.rooms.find(r=>r.id===f.dataset.room).tasks.push(nt);
   homeOpen[f.dataset.room]=true; save(); renderHome();
 });
 
@@ -1559,7 +1599,13 @@ S.shop.items.forEach(x=>{ if(!x.m) x.m=S.shop.cur; if(!x.store) x.store=SHOP_DEF
 if(!S.stock) S.stock=[]; if(!S.meals) S.meals={}; if(!S.events) S.events=[];
 let shopNote='', mealOpen=null;
 function shopItems(k){ k=k||S.shop.cur; return S.shop.items.filter(x=>x.m===k); }
-const storeOpts=sel=>S.shop.stores.map(s=>`<option value="${esc(s)}" ${s===sel?'selected':''}>🏪 ${esc(s)}</option>`).join('');
+const storeOpts=sel=>(sel&&!S.shop.stores.includes(sel)?[...S.shop.stores,sel]:S.shop.stores).map(s=>`<option value="${esc(s)}" ${s===sel?'selected':''}>🏪 ${esc(s)}</option>`).join('')+'<option value="__new">✏️ Autre magasin…</option>';
+const askStore=cur=>{ const n=(prompt('Quel magasin ? (ex : Amazon, Lidl, Cultura, marché de Noël…)',cur||'')||'').trim(); if(n&&!S.shop.stores.includes(n)){ S.shop.stores.push(n); save(); } return n; };
+// « ✏️ Autre magasin… » dans n'importe quelle liste de magasins : on écrit le nom, il est ajouté aux magasins
+document.addEventListener('change',e=>{ const s=e.target; if(s.tagName!=='SELECT'||s.value!=='__new') return;
+  const n=askStore(); if(n){ s.innerHTML=storeOpts(n); s.value=n; }
+  else { const d=[...s.options].find(o=>o.defaultSelected&&o.value!=='__new'); s.value=d?d.value:s.options[0].value; }
+},true);
 function shopHead(){
   const v=S.shop.view||'list', b=(k,l)=>`<button data-sv="${k}" class="${v===k?'on':''}">${l}</button>`;
   return `<div class="row seg">${b('list','🛒 Liste')}${b('meals','🍽️ Repas & stock')}${b('party','🎉 Fêtes')}</div>`
@@ -1667,7 +1713,8 @@ function eventHtml(e){
     ${e.budget>0?`<div class="bar"><i style="width:${Math.min(100,Math.round(gt/e.budget*100))}%;${gt>e.budget?'background:var(--pink-ink)':''}"></i></div><p class="sub">${euro(gt)} prévus sur ${euro(e.budget)}${gt>e.budget?` · ⚠️ ${euro(gt-e.budget)} de trop`:` · reste ${euro(e.budget-gt)}`}</p>`:''}
     <h3 class="evh">🎁 Cadeaux</h3>
     ${e.gifts.map(g=>`<div class="step shoprow ${g.done?'done':''}"><label><input type="checkbox" data-gdone="${e.id}|${g.id}" ${g.done?'checked':''}>
-      <span class="t">${g.who?`<b>${esc(g.who)}</b> : `:''}${esc(g.idea)}${g.store?` <span class="chip storechip">🏪 ${esc(g.store)}</span>`:''}</span></label>
+      <span class="t">${g.who?`<b>${esc(g.who)}</b> : `:''}${esc(g.idea)}</span></label>
+      <button class="chip storechip" data-gstore="${e.id}|${g.id}" title="Changer le magasin">🏪 ${esc(g.store||'magasin ?')} ✎</button>
       <span class="ctl">${+g.price?`<span class="chip">${euro(+g.price)}</span>`:''}
       ${g.shopId&&S.shop.items.some(i=>i.id===g.shopId)?'<span class="chip atchip">🛒 dans la liste</span>':`<button class="ghost" data-gshop="${e.id}|${g.id}" title="Ajouter à ma liste de courses">🛒</button>`}
       <button class="ghost" data-gdel="${e.id}|${g.id}" aria-label="Supprimer">✕</button></span></div>`).join('')||'<p class="sub">Aucun cadeau pour l\'instant.</p>'}
@@ -1716,6 +1763,8 @@ $('#tab-shop').addEventListener('click',e=>{
     S.events.push({id:uid(),type:d.evnew,name,date:t.date(),budget:null,gifts:[],todo:t.todo.map(text=>({id:uid(),text,done:false}))}); save(); renderShop(); return; }
   if(d.evren){ const ev=findEv(d.evren), n=(prompt('Nouveau nom ?',ev.name)||'').trim(); if(n){ ev.name=n; save(); renderShop(); } return; }
   if(d.evdel){ const ev=findEv(d.evdel); if(confirm(`Supprimer « ${ev.name} » et sa liste de cadeaux ?`)){ S.events=S.events.filter(x=>x!==ev); save(); renderShop(); } return; }
+  if(d.gstore){ const {e:ev,id}=splitRef(d.gstore), g=ev.gifts.find(x=>x.id===id), n=askStore(g.store); if(!n) return;
+    g.store=n; const it=g.shopId&&S.shop.items.find(i=>i.id===g.shopId); if(it) it.store=n; save(); renderShop(); return; }
   if(d.gdel){ const {e:ev,id}=splitRef(d.gdel); ev.gifts=ev.gifts.filter(g=>g.id!==id); save(); renderShop(); return; }
   if(d.tdel){ const {e:ev,id}=splitRef(d.tdel); ev.todo=ev.todo.filter(x=>x.id!==id); save(); renderShop(); return; }
   if(d.gshop){ const {e:ev,id}=splitRef(d.gshop), g=ev.gifts.find(x=>x.id===id);
