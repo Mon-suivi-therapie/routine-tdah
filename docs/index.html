@@ -166,6 +166,23 @@ nav button.on{background:var(--pink);border-color:var(--pink-deep)}
 .promoform input[type=number]{width:72px}
 .promoform [hidden]{display:none}
 .qty{display:flex;align-items:center;gap:2px;flex:none}
+/* Courses : magasins, repas, fêtes ; vacances, valise, chats */
+.chip.on{background:var(--pink);border-color:var(--pink-deep);color:var(--ink)}
+.storechip{font-size:.72rem;padding:1px 8px;vertical-align:middle}
+label.chip.pick{display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:34px}
+label.chip.pick input{width:18px;height:18px;min-height:0;padding:0;margin:0;flex:none;accent-color:var(--ok)}
+.mealday h2{font-size:1.05rem;text-transform:capitalize}
+.mealday.today{border:2px solid var(--green-deep)}
+.meal{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0;border-top:1px solid var(--line)}
+.meal:first-of-type{border-top:0}
+.meal .mlabel{flex:none;width:72px;font-weight:700;font-size:.88rem;color:var(--mute)}
+.meal .mtext{flex:1 1 140px;min-width:0;overflow-wrap:anywhere}
+.meal .mbtn{display:flex;gap:4px;margin-left:auto}
+.meal .mbtn button{min-height:38px;padding:0 10px}
+.meal.eaten .mtext{text-decoration:line-through;color:var(--mute)}
+.evh{font-size:1rem;margin:16px 0 4px;display:flex;gap:8px;align-items:center}
+.awaycard{border:2px solid #f3c677;background:#fff8ea}
+@media (prefers-color-scheme:dark){ .awaycard{background:#3a2c18} }
 /* Mes comptes + budget courses */
 .budget{border-left:6px solid var(--ok)}
 .budget.over{border-left-color:var(--pink-ink)}
@@ -329,6 +346,7 @@ details[open] .chev{transform:rotate(180deg)}
   <section id="tab-edit" class="hidden">
     <div id="editList"></div>
     <button class="primary" id="addRoutine" style="width:100%">➕ Nouvelle routine</button>
+    <div class="card" id="awayCard"></div>
     <div class="card" id="syncCard"></div>
     <div class="card">
       <h2>🧭 Assistant de priorité</h2>
@@ -450,7 +468,7 @@ function setDone(id,v){
   save();
   if(Math.floor(S.points/100)>Math.floor(old/100)) setTimeout(()=>pop('🆙'),600);
 }
-const visSteps = r => S.energy==='low' ? r.steps.filter(s=>s.core) : r.steps;
+const visSteps = r => (S.energy==='low'||isAway()) ? r.steps.filter(s=>s.core) : r.steps;
 const allSteps = () => S.routines.flatMap(visSteps);
 function progress(){
   const all=allSteps(); const n=all.filter(s=>done(s.id)).length;
@@ -461,7 +479,7 @@ function streak(){
   for(let i=0;i<365;i++){
     const k=d.toLocaleDateString('sv');
     const has=Object.keys(S.log[k]||{}).length>0;
-    if(has) c++; else if(i>0) break; // aujourd'hui sans rien ne casse pas la série
+    if(has) c++; else if(awayDay(k)) {} else if(i>0) break; // aujourd'hui sans rien, ou un jour d'absence, ne casse pas la série
     d.setDate(d.getDate()-1);
   }
   return c;
@@ -508,7 +526,8 @@ function renderHeader(){
   let m=MSGS[0][1]; for(const [t,x] of MSGS) if(p.pct>=t) m=x;
   if(p.n===0) m=MSGS[0][1];
   if(p.pct===100 && p.total>0 && S.reward) m+=' 🎁 Ta récompense : '+S.reward;
-  if(S.energy==='low') m='Journée à faible énergie : seul l\'essentiel compte aujourd\'hui. C\'est déjà bien. 💜 '+(p.pct===100?m:'');
+  if(isAway()) m='🏖️ Tu n\'es pas à la maison : seul l\'essentiel compte, le reste attend ton retour. Profite ! '+(p.pct===100?m:'');
+  else if(S.energy==='low') m='Journée à faible énergie : seul l\'essentiel compte aujourd\'hui. C\'est déjà bien. 💜 '+(p.pct===100?m:'');
   $('#encourage').textContent=m;
 }
 
@@ -521,7 +540,7 @@ $('#tab-today').addEventListener('click',e=>{
 function renderToday(){
   const curR=currentRoutine(), hmNow=new Date().toTimeString().slice(0,5);
   const nextR=[...S.routines].filter(r=>r.time&&r.time>hmNow).sort((a,b)=>a.time.localeCompare(b.time))[0];
-  $('#tab-today').innerHTML = tasksCard() + S.routines.map(r=>{
+  $('#tab-today').innerHTML = awayBanner() + tasksCard() + S.routines.map(r=>{
     const vs=visSteps(r);
     const n=vs.filter(s=>done(s.id)).length, t=vs.length;
     const mins=vs.filter(s=>!done(s.id)).reduce((a,s)=>a+(+s.min||0),0);
@@ -1043,6 +1062,7 @@ const HOME_MINS=[2,3,5,8,10,15,20,30,45,60];
 const nextMin=m=>HOME_MINS.find(x=>x>(+m||0))||HOME_MINS[0];
 const minBtn=(attr,id,m)=>`<button class="chip" data-${attr}="${id}" title="Changer la durée" aria-label="Changer la durée" style="border:0;min-height:32px;cursor:pointer">${m} min ✎</button>`;
 function cleanHtml(){
+  if(isAway()) return awayPauseHtml();
   const H=S.home, k=todayKey(); pickToday();
   const items=H.pick.ids.map(findTask).filter(Boolean), undone=items.filter(x=>H.last[x.t.id]!==k);
   const mins=undone.reduce((a,x)=>a+(+x.t.min||0),0), more=dueTasks().filter(d=>!H.pick.ids.includes(d.t.id)).length;
@@ -1158,8 +1178,8 @@ function renderHome(){
   const el=$('#tab-home');
   if(!S.home||homeEditing){ el.innerHTML=(S.homes.length&&!newHome?homesBar():'')+setupHtml(); return; }
   const m=S.home.mode||(S.home.moving?'move':'clean');
-  el.innerHTML=homesBar()+`<div class="row seg"><button data-hm="clean" class="${m==='clean'?'on':''}">🧹 Ménage</button><button data-hm="spring" class="${m==='spring'?'on':''}">🌸 Grand ménage</button><button data-hm="move" class="${m==='move'?'on':''}">📦 Déménagement</button></div>`
-    +(m==='move'?movingHtml():m==='spring'?springHtml():cleanHtml());
+  el.innerHTML=homesBar()+`<div class="row seg"><button data-hm="clean" class="${m==='clean'?'on':''}">🧹 Ménage</button><button data-hm="spring" class="${m==='spring'?'on':''}">🌸 Grand ménage</button><button data-hm="move" class="${m==='move'?'on':''}">📦 Déménagement</button><button data-hm="away" class="${m==='away'?'on':''}">🏖️ Vacances</button><button data-hm="cats" class="${m==='cats'?'on':''}">🐱 Chats</button></div>`
+    +(m==='move'?movingHtml():m==='spring'?springHtml():m==='away'?awayHtml():m==='cats'?catsHtml():cleanHtml());
 }
 $('#tab-home').addEventListener('click',e=>{
   const sm=e.target.closest('summary');
@@ -1291,6 +1311,8 @@ function editForm(x){ // corriger une erreur : nom, prix à l'unité, rayon
     <input data-k="text" value="${esc(x.text)}" aria-label="Nom de l'article" style="flex:1 1 100%">
     <label style="display:flex;gap:6px;align-items:center">Prix/u <input data-k="price" type="text" inputmode="decimal" autocomplete="off" value="${x.price>0?(+x.price).toFixed(2).replace('.',','):''}" placeholder="—" aria-label="Prix à l'unité" style="width:90px"> €</label>
     <select data-k="cat" aria-label="Rayon">${SHOP_CATS.map(([k,e,n])=>`<option value="${k}" ${k===x.cat?'selected':''}>${e} ${n}</option>`).join('')}</select>
+    <select data-k="store" aria-label="Magasin">${storeOpts(x.store)}</select>
+    <select data-k="m" aria-label="Mois">${[-2,-1,0,1,2,3].map(n=>shiftMonth(S.shop.cur,n)).map(k=>`<option value="${k}" ${k===x.m?'selected':''}>📅 ${monthLabel(k)}</option>`).join('')}</select>
     <span class="row" style="justify-content:flex-start;width:100%">
       <button class="primary">Enregistrer</button>
       <button type="button" class="ghost" data-promoclose="1">Annuler</button></span></form>`;
@@ -1312,21 +1334,28 @@ function promoForm(x){
       <button type="button" class="ghost" data-promoclose="1">Annuler</button></span></form>`;
 }
 function renderShop(){
-  const it=S.shop.items, left=it.filter(x=>!x.done), got=it.filter(x=>x.done), nLeft=left.filter(x=>!(x.price<0)).length; // une ligne de promo n'est pas un article
+  const view=S.shop.view||'list';
+  if(view!=='list'){ $('#tab-shop').innerHTML=shopHead()+(view==='meals'?mealsHtml():partyHtml()); return; }
+  const all=shopItems(), it=S.shop.store?all.filter(x=>x.store===S.shop.store):all;
+  const left=it.filter(x=>!x.done), got=it.filter(x=>x.done), nLeft=left.filter(x=>!(x.price<0)).length; // une ligne de promo n'est pas un article
   const saved=it.reduce((t,x)=>t+baseOf(x)-lineOf(x),0);
   const row=x=>{ const promo=x.promo&&x.price>0, line=lineOf(x);
     return `<div class="step shoprow ${x.done?'done':''}"><label><input type="checkbox" data-sh="${x.id}" ${x.done?'checked':''}>
-    <span class="t">${esc(x.text)}${x.price&&x.qty>1?`<br><span class="sub">${x.qty} × ${euro(+x.price)}</span>`:''}${promo?`<br><span class="chip promochip">🏷️ ${promoTxt(x.promo)}</span><span class="sub">${promoHint(x)}</span>`:''}</span></label>
+    <span class="t">${esc(x.text)}${x.store&&x.store!==SHOP_DEF_STORE?` <span class="chip storechip">🏪 ${esc(x.store)}</span>`:''}${x.price&&x.qty>1?`<br><span class="sub">${x.qty} × ${euro(+x.price)}</span>`:''}${promo?`<br><span class="chip promochip">🏷️ ${promoTxt(x.promo)}</span><span class="sub">${promoHint(x)}</span>`:''}</span></label>
     <span class="ctl"><span class="qty"><button class="ghost" data-shq="-1" data-id="${x.id}" aria-label="Un de moins">−</button><b>${x.qty}</b><button class="ghost" data-shq="1" data-id="${x.id}" aria-label="Un de plus">+</button></span>
     ${x.price?`<span class="chip">${promo&&line<baseOf(x)?`<s>${euro(baseOf(x))}</s> `:''}${euro(line)}</span>`:''}
-    <button class="ghost" data-edit-open="${x.id}" aria-label="Modifier" title="Modifier le nom, le prix ou le rayon">✏️</button>
+    <button class="ghost" data-edit-open="${x.id}" aria-label="Modifier" title="Modifier le nom, le prix, le rayon, le magasin ou le mois">✏️</button>
     ${x.price>0?`<button class="ghost" data-promo-open="${x.id}" aria-label="Promo" title="Ajouter ou changer une promo">🏷️</button>`:''}
     <button class="ghost" data-shdel="${x.id}" aria-label="Supprimer">✕</button></span>
     ${shopEditOpen===x.id?editForm(x):shopPromoOpen===x.id?promoForm(x):''}</div>`; };
   const groups=SHOP_CATS.map(([k,e,n])=>{ const g=it.filter(x=>x.cat===k).sort((a,b)=>a.done-b.done); if(!g.length) return '';
     const gl=g.filter(x=>!x.done&&!(x.price<0)).length;
     return `<div class="card routine"><h2>${e} ${n} <span class="chip">${gl?gl+' à prendre':'✓ tout pris'}</span></h2>${g.map(row).join('')}</div>`; }).join('');
-  $('#tab-shop').innerHTML=budgetCard()+`<div class="card"><h2>🛒 Ma liste de courses</h2>
+  const prevM=Object.keys(S.shop.items.reduce((o,x)=>(o[x.m]=1,o),{})).filter(k=>k<S.shop.cur).sort().pop();
+  $('#tab-shop').innerHTML=shopHead()+budgetCard()+`<div class="card"><h2>🛒 Ma liste de courses${S.shop.store?` <span class="chip">🏪 ${esc(S.shop.store)}</span>`:''}</h2>
+    ${storeBar(all)}
+    ${shopNote?`<p class="msg" style="margin:10px 0">${shopNote}</p>`:''}
+    ${!all.length&&prevM?`<div class="row" style="justify-content:flex-start;margin:8px 0"><button class="primary" data-shcopy="${prevM}">📋 Reprendre la liste de ${esc(monthLabel(prevM).toLowerCase())}</button></div>`:''}
     <p class="sub">${it.length?(left.length?`<b>${nLeft}</b> article${nLeft>1?'s':''} à prendre · reste ~<b>${euro(sumOf(left))}</b> · total liste ~${euro(sumOf(it))}${saved>0.004?` · 🏷️ ${euro(saved)} économisés`:''}`:'🎉 Tout est dans le panier, bravo !'):'Ta liste est vide.'}</p>
     ${it.length?`<div class="bar"><i style="width:${Math.round(got.length/it.length*100)}%"></i></div>`:''}
     <form id="shopForm" class="row" style="margin-top:14px">
@@ -1334,9 +1363,10 @@ function renderShop(){
       <input id="shopQty" type="number" step="1" min="1" value="1" aria-label="Quantité" title="Quantité" style="width:64px;flex:none">
       <input id="shopPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Prix/u €" title="Prix à l'unité" style="width:96px;flex:none">
       <select id="shopCat" aria-label="Rayon" style="width:auto;flex:none">${SHOP_CATS.map(([k,e,n])=>`<option value="${k}" ${k===(S.shop.lastCat||'autre')?'selected':''}>${e} ${n}</option>`).join('')}</select>
+      <select id="shopStore" aria-label="Magasin" style="width:auto;flex:none">${storeOpts(S.shop.store||S.shop.lastStore||SHOP_DEF_STORE)}</select>
       <button class="primary">+</button></form>
     ${it.length?`<div class="row" style="justify-content:flex-start;margin-top:12px">
-      ${got.length?`<button data-shact="clear">🧺 Retirer les ${got.length} article${got.length>1?'s':''} pris</button><button data-shact="uncheck">↺ Tout décocher</button>`:''}
+      ${got.length?`<button data-shact="clear" title="Les articles à manger vont dans ton stock (Repas & stock)">🧺 Retirer les ${got.length} article${got.length>1?'s':''} pris → stock</button><button data-shact="uncheck">↺ Tout décocher</button>`:''}
       <button class="ghost" data-shact="empty">Vider la liste</button></div>`:''}</div>${groups}`;
 }
 $('#tab-shop').addEventListener('change',e=>{
@@ -1344,7 +1374,7 @@ $('#tab-shop').addEventListener('change',e=>{
   const id=e.target.dataset.sh; if(!id) return;
   const x=S.shop.items.find(i=>i.id===id); if(!x) return;
   x.done=e.target.checked; if(x.done) pop(['🛒','✅','🥕','✨'][Math.floor(Math.random()*4)]);
-  if(x.done&&S.shop.items.every(i=>i.done)) setTimeout(()=>pop('🎉'),500);
+  if(x.done&&shopItems().every(i=>i.done)) setTimeout(()=>pop('🎉'),500);
   save(); renderShop();
 });
 $('#tab-shop').addEventListener('click',e=>{
@@ -1357,9 +1387,11 @@ $('#tab-shop').addEventListener('click',e=>{
   if(b.dataset.shdel){ S.shop.items=S.shop.items.filter(i=>i.id!==b.dataset.shdel); save(); renderShop(); return; }
   if(b.dataset.shq){ const x=S.shop.items.find(i=>i.id===b.dataset.id); if(x){ x.qty=Math.max(1,(x.qty||1)+(+b.dataset.shq)); save(); renderShop(); } return; }
   const a=b.dataset.shact;
-  if(a==='clear'){ S.shop.items=S.shop.items.filter(i=>!i.done); save(); renderShop(); }
-  if(a==='uncheck'){ S.shop.items.forEach(i=>i.done=false); save(); renderShop(); }
-  if(a==='empty'&&confirm('Vider toute la liste de courses ?')){ S.shop.items=[]; save(); renderShop(); }
+  const mine=i=>i.m===S.shop.cur&&(!S.shop.store||i.store===S.shop.store);
+  if(a==='clear'){ const gone=S.shop.items.filter(i=>mine(i)&&i.done), n=toStock(gone); S.shop.items=S.shop.items.filter(i=>!gone.includes(i));
+    shopNote=n?`🥫 ${n} article${n>1?'s':''} rangé${n>1?'s':''} dans ton stock. Va dans « 🍽️ Repas & stock » pour prévoir tes repas.`:''; save(); renderShop(); }
+  if(a==='uncheck'){ S.shop.items.filter(mine).forEach(i=>i.done=false); save(); renderShop(); }
+  if(a==='empty'&&confirm(`Vider la liste de ${monthLabel(S.shop.cur).toLowerCase()}${S.shop.store?' pour '+S.shop.store:''} ?`)){ S.shop.items=S.shop.items.filter(i=>!mine(i)); save(); renderShop(); }
 });
 $('#tab-shop').addEventListener('submit',e=>{
   e.preventDefault();
@@ -1367,7 +1399,7 @@ $('#tab-shop').addEventListener('submit',e=>{
     const text=f.querySelector('[data-k=text]').value.trim(); if(!text) return alert('Le nom ne peut pas être vide.');
     const raw=String(f.querySelector('[data-k=price]').value).replace(',','.').trim(), price=raw===''?0:parseFloat(raw);
     if(isNaN(price)||price<0) return alert('Prix invalide.');
-    x.text=text; x.cat=f.querySelector('[data-k=cat]').value;
+    x.text=text; x.cat=f.querySelector('[data-k=cat]').value; x.store=f.querySelector('[data-k=store]').value; x.m=f.querySelector('[data-k=m]').value;
     if(!(x.price<0)) x.price=Math.round(price*100)/100; // une ligne de promo (prix négatif) garde son montant
     if(!(x.price>0)) delete x.promo;
     shopEditOpen=null; save(); renderShop(); pop('✏️'); return; }
@@ -1377,11 +1409,12 @@ $('#tab-shop').addEventListener('submit',e=>{
     if(t==='pct'){ const v=g('pct'); if(!(v>0&&v<=100)) return alert('Le pourcentage doit être entre 1 et 100.'); x.promo={t,v}; }
     if(t==='eur'){ const v=g('eur'); if(!(v>0)) return alert('Indique un montant en euros.'); x.promo={t,v:Math.round(v*100)/100}; }
     shopPromoOpen=null; save(); renderShop(); pop('🏷️'); return; }
+  if(e.target.id!=='shopForm') return;
   const v=$('#shopText').value.trim(); if(!v) return;
-  const cat=$('#shopCat').value, price=parseFloat(String($('#shopPrice').value).replace(',','.'));
+  const cat=$('#shopCat').value, store=$('#shopStore').value, price=parseFloat(String($('#shopPrice').value).replace(',','.'));
   if($('#shopPrice').value.trim()&&(isNaN(price)||price<0)) return alert('Prix invalide (exemple : 1,09).');
   const qty=Math.max(1,parseInt($('#shopQty').value,10)||1);
-  S.shop.lastCat=cat; S.shop.items.push({id:uid(),cat,text:v,qty,price:isNaN(price)?0:price,done:false});
+  S.shop.lastCat=cat; S.shop.lastStore=store; S.shop.items.push({id:uid(),cat,text:v,qty,price:isNaN(price)?0:price,done:false,m:S.shop.cur,store});
   save(); renderShop(); $('#shopText').focus();
 });
 
@@ -1403,14 +1436,15 @@ function parseAmt(v){ v=String(v).replace(/\s|€/g,'').replace(',','.'); if(v==
 const amtVal=a=>a==null?'':String(a.toFixed(2)).replace('.',',');
 /* Budget courses : montant choisi, sinon « ce qu'il reste » du mois affiché dans Mes comptes */
 function shopBudget(){ if(S.acc.shopBudget>0) return {v:S.acc.shopBudget,src:'fixed'};
-  const c=liveCalc(accMonth()); if(c) return c.end>0?{v:c.end,src:'live'}:{v:0,src:'live'}; // solde réel noté : on part de ce qu'il restera vraiment
-  const l=accLeft(accMonth()); return l>0?{v:l,src:'left'}:null; }
+  const am=S.acc.months[S.shop.cur]; // les comptes du même mois que la liste de courses
+  const c=liveCalc(am); if(c) return c.end>0?{v:c.end,src:'live'}:{v:0,src:'live'}; // solde réel noté : on part de ce qu'il restera vraiment
+  const l=accLeft(am); return l>0?{v:l,src:'left'}:null; }
 function budgetCard(){
-  const b=shopBudget(), list=sumOf(S.shop.items.filter(x=>!x.done)), all=sumOf(S.shop.items);
-  if(!b) return `<div class="card budget"><h2>💶 Mon budget courses</h2><p class="sub">Pas encore de budget. Choisis un montant, ou remplis « Mes comptes » : ce qu'il te reste sera utilisé.</p>${budgetForm()}</div>`;
+  const b=shopBudget(), list=sumOf(shopItems().filter(x=>!x.done)), all=sumOf(shopItems());
+  if(!b) return `<div class="card budget"><h2>💶 Mon budget courses</h2><p class="sub">Pas encore de budget pour ${esc(monthLabel(S.shop.cur).toLowerCase())}. Choisis un montant, ou remplis « Mes comptes » de ce mois : ce qu'il te reste sera utilisé.</p>${budgetForm()}</div>`;
   const rest=b.v-all, pct=b.v>0?Math.min(100,Math.round(all/b.v*100)):100, over=rest<0;
   return `<div class="card budget ${over?'over':''}"><h2>💶 Mon budget courses</h2>
-    <p class="sub">Budget <b>${euro(b.v)}</b> ${b.src==='left'?`<span class="chip">ce qu'il reste en ${esc(monthLabel(S.acc.cur).split(' ')[0].toLowerCase())}</span>`:b.src==='live'?`<span class="chip">⏱️ ce qu'il restera sur mon compte</span>`:''} · liste <b>${euro(all)}</b>${list!==all?` (encore ${euro(list)} à prendre)`:''}</p>
+    <p class="sub">Budget <b>${euro(b.v)}</b> ${b.src==='left'?`<span class="chip">ce qu'il reste en ${esc(monthLabel(S.shop.cur).split(' ')[0].toLowerCase())}</span>`:b.src==='live'?`<span class="chip">⏱️ ce qu'il restera sur mon compte</span>`:''} · liste <b>${euro(all)}</b>${list!==all?` (encore ${euro(list)} à prendre)`:''}</p>
     <div class="bar"><i style="width:${pct}%;${over?'background:var(--pink-ink)':''}"></i></div>
     <p style="margin:10px 0 0;font-weight:700">${over?`⚠️ Tu dépasses de ${euro(-rest)}. Enlève ou décale un article, rien de grave.`:`✅ Il te restera ${euro(rest)} après les courses.`}</p>
     <details style="margin-top:8px"><summary class="sub" style="cursor:pointer">Changer le budget</summary>${budgetForm()}</details></div>`;
@@ -1430,7 +1464,7 @@ function moneyLines(kind,title,emoji){
     <button class="ghost" data-accadd="${kind}" style="margin-top:8px">➕ Ajouter une ligne</button></div>`;
 }
 function moneySummary(){
-  const m=accMonth(), exp=accSum(m.exp), inc=accSum(m.inc), left=inc-exp, shop=sumOf(S.shop.items);
+  const m=accMonth(), exp=accSum(m.exp), inc=accSum(m.inc), left=inc-exp, shop=sumOf(shopItems(S.acc.cur));
   return `<h2>🧮 Résumé de ${esc(monthLabel(S.acc.cur).toLowerCase())}</h2>
     <div class="sumrow"><span>Total dépenses</span><b>${euro(exp)}</b></div>
     <div class="sumrow"><span>Total revenus</span><b>${euro(inc)}</b></div>
@@ -1447,7 +1481,7 @@ function liveCalc(m){
 const agoShort=t=>{ const s=(Date.now()-t)/1000; if(s<60) return 'à l\'instant'; if(s<3600) return `il y a ${Math.floor(s/60)} min`; if(s<86400) return `il y a ${Math.floor(s/3600)} h`;
   return 'le '+new Date(t).toLocaleDateString('fr-FR',{day:'numeric',month:'long'})+' à '+new Date(t).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); };
 function liveHtml(){
-  const m=accMonth(), c=liveCalc(m), shop=sumOf(S.shop.items.filter(x=>!x.done));
+  const m=accMonth(), c=liveCalc(m), shop=sumOf(shopItems(S.acc.cur).filter(x=>!x.done));
   const list=(a,sign)=>a.map(l=>`<span class="chip">${esc(l.name)} ${sign}${euro(+l.amt)}</span>`).join(' ');
   return `<h2>⏱️ Mon compte en temps réel</h2>
     <form data-bal="1" class="row" style="justify-content:flex-start;flex-wrap:nowrap">
@@ -1514,6 +1548,360 @@ $('#tab-shop').addEventListener('submit',e=>{
 },true);
 $('#tab-shop').addEventListener('click',e=>{ const b=e.target.closest('[data-budgetauto]'); if(!b) return; S.acc.shopBudget=null; save(); renderShop(); });
 
+/* ---------- Courses : mois, magasins, stock, repas, fêtes ----------
+   item.m = mois de la liste ('AAAA-MM'), item.store = magasin.
+   S.stock = [{id,text,cat,n}] (n = portions), S.meals = {lundi 'AAAA-MM-JJ':{'0-midi':{text,uses:[stockId],eaten}}}
+   S.events = [{id,type,name,date,budget,gifts:[{id,who,idea,price,store,done,shopId}],todo:[{id,text,done}]}] */
+const SHOP_DEF_STORE='E.Leclerc';
+if(!S.shop.stores) S.shop.stores=[SHOP_DEF_STORE,'Action'];
+if(!S.shop.cur) S.shop.cur=S.acc.cur; // la liste existante va avec le mois des comptes (pour garder le lien avec le budget)
+S.shop.items.forEach(x=>{ if(!x.m) x.m=S.shop.cur; if(!x.store) x.store=SHOP_DEF_STORE; });
+if(!S.stock) S.stock=[]; if(!S.meals) S.meals={}; if(!S.events) S.events=[];
+let shopNote='', mealOpen=null;
+function shopItems(k){ k=k||S.shop.cur; return S.shop.items.filter(x=>x.m===k); }
+const storeOpts=sel=>S.shop.stores.map(s=>`<option value="${esc(s)}" ${s===sel?'selected':''}>🏪 ${esc(s)}</option>`).join('');
+function shopHead(){
+  const v=S.shop.view||'list', b=(k,l)=>`<button data-sv="${k}" class="${v===k?'on':''}">${l}</button>`;
+  return `<div class="row seg">${b('list','🛒 Liste')}${b('meals','🍽️ Repas & stock')}${b('party','🎉 Fêtes')}</div>`
+    +(v==='list'?`<div class="card" style="padding:12px 20px"><div class="row monthnav" style="margin:0"><button class="ghost" data-shm="-1" aria-label="Mois précédent">◀</button><b>📅 ${esc(monthLabel(S.shop.cur))}</b><button class="ghost" data-shm="1" aria-label="Mois suivant">▶</button></div></div>`:'');
+}
+function storeBar(all){
+  const tot=s=>sumOf(all.filter(x=>x.store===s)), f=S.shop.store;
+  return `<div class="chips" style="margin:8px 0">
+    <button class="chip ${!f?'on':''}" data-sst="">Tous · ${euro(sumOf(all))}</button>
+    ${S.shop.stores.map(s=>`<button class="chip ${f===s?'on':''}" data-sst="${esc(s)}">🏪 ${esc(s)} · ${euro(tot(s))}</button>`).join('')}
+    <button class="chip" data-sstadd="1">➕ Magasin</button>
+    ${f&&f!==SHOP_DEF_STORE?`<button class="chip" data-sstdel="${esc(f)}">🗑 Retirer « ${esc(f)} »</button>`:''}</div>`;
+}
+/* Portions : « x10 », « 24 portions », « (12 x 100 g) », « 6 x 1,5 L »… multipliées par la quantité */
+function portionsOf(x){
+  const t=String(x.text); let n=1, m;
+  if((m=t.match(/(\d+)\s*portions?/i))) n=+m[1];
+  else if((m=t.match(/\bx\s?(\d+)\b/i))) n=+m[1];
+  else if((m=t.match(/(\d+)\s*x\s*\d/i))) n=+m[1];
+  return Math.max(1,n)*(x.qty||1);
+}
+const FOOD_CATS=['viande','fruits','pain','laitier','charcut','surgele','sale','sucre','boisson'];
+function toStock(items){ // articles à manger achetés → stock
+  let c=0;
+  items.filter(x=>FOOD_CATS.includes(x.cat)&&!(x.price<0)).forEach(x=>{
+    const n=portionsOf(x), s=S.stock.find(y=>y.text===x.text);
+    if(s) s.n+=n; else S.stock.push({id:uid(),text:x.text,cat:x.cat,n}); c++; });
+  return c;
+}
+const shortName=t=>String(t).replace(/\(.*?\)/g,'').replace(/,.*$/,'').replace(/\s*(Eco\+|Notre Jardin|Tradilège|Délisse|Epi d’or|Pom’lisse|Knorr)/gi,'').replace(/\s+x\s?\d+.*$/i,'').replace(/\s+/g,' ').trim();
+function plannedOf(id){ let n=0; Object.values(S.meals).forEach(w=>Object.values(w).forEach(sl=>{ if(!sl.eaten&&(sl.uses||[]).includes(id)) n++; })); return n; }
+const availOf=s=>s.n-plannedOf(s.id);
+const mondayOf=d=>{ const x=new Date(d); x.setHours(12,0,0,0); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x.toLocaleDateString('sv'); };
+const addDays=(iso,n)=>{ const d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+n); return d.toLocaleDateString('sv'); };
+const MEAL_SLOTS=[['midi','☀️ Midi'],['soir','🌙 Soir']];
+const SIDE_RE=/purée|pomme(s)? de terre|grenaille|salade|iceberg|tomate|concombre|pain|riz|pâtes|haricot|légume/i;
+const NOT_MEAL_RE=/liégeois|compote|crème légère|matière grasse|vache qui rit|eau |cristaline|promo|beurre|lait|café|sucre|biscuit|chocolat/i;
+function mealIdea(){
+  const ok=s=>availOf(s)>0&&!NOT_MEAL_RE.test(s.text);
+  const sides=S.stock.filter(s=>ok(s)&&SIDE_RE.test(s.text));
+  const mains=S.stock.filter(s=>ok(s)&&!SIDE_RE.test(s.text)&&(['viande','surgele','charcut'].includes(s.cat)||/œuf|oeuf|soupe|jambon|poulet|poisson|steak|burger/i.test(s.text)));
+  if(!mains.length&&!sides.length) return null;
+  const r=a=>a[Math.floor(Math.random()*a.length)], m=mains.length?r(mains):null, sd=sides.length?r(sides):null;
+  const uses=[m,sd].filter(Boolean);
+  return {text:uses.map(s=>shortName(s.text)).join(' + '),uses:uses.map(s=>s.id)};
+}
+function mealsHtml(){
+  const wk=S.shop.week||(S.shop.week=mondayOf(new Date())), W=S.meals[wk]||{}, today=todayKey();
+  const days=[...Array(7)].map((_,i)=>{ const iso=addDays(wk,i), d=new Date(iso+'T12:00:00');
+    return `<div class="card mealday ${iso===today?'today':''}"><h2>${d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'short'})}${iso===today?' <span class="chip nowchip">aujourd\'hui</span>':''}</h2>
+      ${MEAL_SLOTS.map(([k,l])=>{ const key=i+'-'+k, sl=W[key]||{}, open=mealOpen===wk+'|'+key, has=sl.text||(sl.uses||[]).length;
+        const used=(sl.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean), same=used.map(s=>shortName(s.text)).join(' + ')===sl.text;
+        const chips=same?'':used.map(s=>`<span class="chip">🥫 ${esc(shortName(s.text))}</span>`).join(' ');
+        return `<div class="meal ${sl.eaten?'eaten':''}"><span class="mlabel">${l}</span>
+          <span class="mtext">${has?`${esc(sl.text||'')}${chips?`<span class="chips" style="margin:4px 0 0">${chips}</span>`:''}`:'<span class="sub">—</span>'}</span>
+          <span class="mbtn">${has?`<button class="ghost" data-meaten="${key}" title="${sl.eaten?'Pas encore mangé':'Mangé : retire du stock'}">${sl.eaten?'↺':'✓'}</button>`:`<button class="ghost" data-midea="${key}" title="Une idée avec mon stock">💡</button>`}
+          <button class="ghost" data-medit="${key}" aria-label="Modifier ce repas">✏️</button></span>
+          ${open?mealForm(key,sl):''}</div>`; }).join('')}</div>`; }).join('');
+  return `<div class="card"><div class="row monthnav" style="margin:0"><button class="ghost" data-mwk="-7" aria-label="Semaine précédente">◀</button><b>🍽️ Semaine du ${new Date(wk+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}</b><button class="ghost" data-mwk="7" aria-label="Semaine suivante">▶</button></div>
+    <p class="sub">Prévois tes repas avec ce que tu as déjà. 💡 propose une idée avec ton stock, ✓ quand c'est mangé (ça retire du stock).</p></div>
+    ${days}${stockHtml()}`;
+}
+function mealForm(key,sl){
+  const opts=S.stock.filter(s=>s.n>0||(sl.uses||[]).includes(s.id));
+  return `<form class="promoform" data-meal="${key}">
+    <input data-k="text" value="${esc(sl.text||'')}" placeholder="Ex : pâtes bolo, resto, chez maman…" autocomplete="off" style="flex:1 1 100%">
+    ${opts.length?`<span class="sub" style="width:100%">Ce que j'utilise de mon stock :</span><span class="chips" style="width:100%">${opts.map(s=>`<label class="chip pick"><input type="checkbox" value="${s.id}" ${(sl.uses||[]).includes(s.id)?'checked':''}> ${esc(shortName(s.text))} <span class="sub">(${availOf(s)} dispo)</span></label>`).join('')}</span>`:''}
+    <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button>
+      <button type="button" class="ghost" data-mclear="${key}">Vider</button><button type="button" class="ghost" data-mclose="1">Annuler</button></span></form>`;
+}
+function stockHtml(){
+  const rows=SHOP_CATS.flatMap(([k])=>S.stock.filter(s=>s.cat===k)).map(s=>{ const p=plannedOf(s.id), a=s.n-p;
+    return `<div class="step shoprow"><span class="t" style="flex:1 1 160px;min-width:0">${esc(s.text)}<br><span class="sub">${p?`${p} prévu${p>1?'s':''} · `:''}${a<0?`<b class="negtxt">⚠️ il en manque ${-a}</b>`:s.n===0?'épuisé':`${a} dispo`}</span></span>
+      <span class="ctl"><span class="qty"><button class="ghost" data-stq="-1" data-id="${s.id}" aria-label="Un de moins">−</button><b>${s.n}</b><button class="ghost" data-stq="1" data-id="${s.id}" aria-label="Un de plus">+</button></span>
+      <button class="ghost" data-stbuy="${s.id}" title="Ajouter à ma liste de courses">🛒</button><button class="ghost" data-stdel="${s.id}" aria-label="Supprimer">✕</button></span></div>`; }).join('');
+  return `<div class="card routine"><h2>🥫 Mon stock <span class="chip">${S.stock.length} article${S.stock.length>1?'s':''}</span></h2>
+    <p class="sub">En portions. Rempli tout seul quand tu « retires les articles pris » de ta liste ; tu peux aussi ajouter ce que tu as déjà.</p>
+    ${rows||'<p class="sub">Vide pour l\'instant.</p>'}
+    <form data-stockadd="1" class="row" style="margin-top:10px"><input data-k="text" placeholder="Ex : paquet de pâtes" autocomplete="off" style="flex:1;min-width:150px">
+      <input data-k="n" type="number" min="1" step="1" value="1" aria-label="Portions" style="width:64px;flex:none">
+      <select data-k="cat" aria-label="Rayon" style="width:auto;flex:none">${SHOP_CATS.filter(([k])=>FOOD_CATS.includes(k)).map(([k,e,n])=>`<option value="${k}" ${k==='sale'?'selected':''}>${e} ${n}</option>`).join('')}</select>
+      <button class="primary">+</button></form></div>`;
+}
+/* Fêtes : Noël, anniversaires… */
+function nextDate(mm,dd){ const t=new Date(), y=t.getFullYear(), d=`${y}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`; return d>=todayKey()?d:`${y+1}-${d.slice(5)}`; }
+const PARTY_TPL={
+  noel:{emoji:'🎄',name:()=>'Noël '+nextDate(12,24).slice(0,4),date:()=>nextDate(12,24),todo:['Faire la liste des personnes à qui offrir','Fixer un budget cadeaux','Sapin et décorations','Acheter ou commander les cadeaux','Emballer les cadeaux','Repas de fête : qui vient ? qui apporte quoi ?','Courses du repas de fête','Messages / cartes de vœux']},
+  anniv:{emoji:'🎂',name:()=>'Anniversaire',date:()=>'',todo:['Choisir le cadeau','Acheter le cadeau','Emballer le cadeau','Carte / message','Gâteau et bougies','Prévenir / inviter','Décoration']},
+  autre:{emoji:'🎉',name:()=>'Fête',date:()=>'',todo:['Choisir la date','Prévenir / inviter','Prévoir à manger et à boire','Décoration']},
+};
+const daysTo=iso=>iso?Math.round((new Date(iso+'T12:00:00')-new Date(todayKey()+'T12:00:00'))/864e5):null;
+function partyHtml(){
+  const ev=[...S.events].sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+  return `<div class="card"><h2>🎉 Fêtes et anniversaires</h2><p class="sub">Prépare en avance, petit à petit : cadeaux, budget et choses à faire.</p>
+    <div class="row" style="justify-content:flex-start"><button class="primary" data-evnew="noel">🎄 Préparer Noël</button><button data-evnew="anniv">🎂 Un anniversaire</button><button data-evnew="autre">🎉 Autre fête</button></div></div>
+    ${ev.map(eventHtml).join('')||''}`;
+}
+function eventHtml(e){
+  const t=PARTY_TPL[e.type]||PARTY_TPL.autre, d=daysTo(e.date), gt=e.gifts.reduce((a,g)=>a+(+g.price||0),0), td=e.todo.filter(x=>x.done).length;
+  const when=d==null?'<span class="chip">date à choisir</span>':d>1?`<span class="chip">dans ${d} jours</span>`:d===1?'<span class="chip duechip">demain !</span>':d===0?'<span class="chip nowchip">aujourd\'hui 🎉</span>':'<span class="chip">passé</span>';
+  return `<div class="card routine"><h2>${t.emoji} ${esc(e.name)} ${when}</h2>
+    <div class="row" style="justify-content:flex-start;align-items:center">
+      <label class="sub" style="display:flex;gap:6px;align-items:center">📅 <input type="date" data-evdate="${e.id}" value="${esc(e.date||'')}" style="width:auto"></label>
+      <label class="sub" style="display:flex;gap:6px;align-items:center">💶 Budget <input data-evbudget="${e.id}" type="text" inputmode="decimal" autocomplete="off" value="${e.budget>0?amtVal(e.budget):''}" placeholder="—" style="width:90px"> €</label></div>
+    ${e.budget>0?`<div class="bar"><i style="width:${Math.min(100,Math.round(gt/e.budget*100))}%;${gt>e.budget?'background:var(--pink-ink)':''}"></i></div><p class="sub">${euro(gt)} prévus sur ${euro(e.budget)}${gt>e.budget?` · ⚠️ ${euro(gt-e.budget)} de trop`:` · reste ${euro(e.budget-gt)}`}</p>`:''}
+    <h3 class="evh">🎁 Cadeaux</h3>
+    ${e.gifts.map(g=>`<div class="step shoprow ${g.done?'done':''}"><label><input type="checkbox" data-gdone="${e.id}|${g.id}" ${g.done?'checked':''}>
+      <span class="t">${g.who?`<b>${esc(g.who)}</b> : `:''}${esc(g.idea)}${g.store?` <span class="chip storechip">🏪 ${esc(g.store)}</span>`:''}</span></label>
+      <span class="ctl">${+g.price?`<span class="chip">${euro(+g.price)}</span>`:''}
+      ${g.shopId&&S.shop.items.some(i=>i.id===g.shopId)?'<span class="chip atchip">🛒 dans la liste</span>':`<button class="ghost" data-gshop="${e.id}|${g.id}" title="Ajouter à ma liste de courses">🛒</button>`}
+      <button class="ghost" data-gdel="${e.id}|${g.id}" aria-label="Supprimer">✕</button></span></div>`).join('')||'<p class="sub">Aucun cadeau pour l\'instant.</p>'}
+    <form data-giftadd="${e.id}" class="row" style="margin-top:8px"><input data-k="who" placeholder="Pour qui ?" autocomplete="off" style="width:110px;flex:none">
+      <input data-k="idea" placeholder="Idée de cadeau" autocomplete="off" style="flex:1;min-width:130px">
+      <input data-k="price" type="text" inputmode="decimal" autocomplete="off" placeholder="Prix €" style="width:80px;flex:none">
+      <select data-k="store" aria-label="Magasin" style="width:auto;flex:none">${storeOpts('Action')}</select><button class="primary">+</button></form>
+    <h3 class="evh">✅ À faire <span class="chip">${td}/${e.todo.length}</span></h3>
+    ${e.todo.map(x=>`<div class="step ${x.done?'done':''}"><label><input type="checkbox" data-tdone="${e.id}|${x.id}" ${x.done?'checked':''}><span class="t">${esc(x.text)}</span></label>
+      <button class="ghost" data-tdel="${e.id}|${x.id}" aria-label="Supprimer">✕</button></div>`).join('')}
+    <form data-todoadd="${e.id}" class="row" style="flex-wrap:nowrap;margin-top:8px"><input data-k="text" placeholder="Ajouter une chose à faire…" autocomplete="off"><button class="primary">+</button></form>
+    <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="ghost" data-evren="${e.id}">✏️ Renommer</button><button class="ghost" data-evdel="${e.id}">🗑 Supprimer</button></div></div>`;
+}
+const findEv=id=>S.events.find(e=>e.id===id);
+const splitRef=v=>{ const [eid,id]=String(v).split('|'); const e=findEv(eid); return {e,id}; };
+$('#tab-shop').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return; const d=b.dataset;
+  if(d.sv){ S.shop.view=d.sv; mealOpen=null; save(); renderShop(); return; }
+  if(d.shm){ S.shop.cur=shiftMonth(S.shop.cur,+d.shm); shopNote=''; shopEditOpen=shopPromoOpen=null; save(); renderShop(); return; }
+  if(d.sst!==undefined){ S.shop.store=d.sst||null; save(); renderShop(); return; }
+  if(d.sstadd){ const n=(prompt('Nom du magasin ? (ex : Lidl, Carrefour, Action…)')||'').trim(); if(n&&!S.shop.stores.includes(n)){ S.shop.stores.push(n); S.shop.store=n; save(); renderShop(); } return; }
+  if(d.sstdel){ const n=d.sstdel; if(!confirm(`Retirer le magasin « ${n} » ? Ses articles passent chez ${SHOP_DEF_STORE}.`)) return;
+    S.shop.items.forEach(i=>{ if(i.store===n) i.store=SHOP_DEF_STORE; }); S.shop.stores=S.shop.stores.filter(s=>s!==n); S.shop.store=null; save(); renderShop(); return; }
+  if(d.shcopy){ shopItems(d.shcopy).filter(i=>!(i.price<0)).forEach(i=>{ const c={...i,id:uid(),m:S.shop.cur,done:false}; delete c.promo; S.shop.items.push(c); }); save(); renderShop(); return; }
+  /* repas */
+  if(d.mwk){ S.shop.week=addDays(S.shop.week,+d.mwk); mealOpen=null; save(); renderShop(); return; }
+  const W=()=>S.meals[S.shop.week]||(S.meals[S.shop.week]={});
+  if(d.medit){ const k=S.shop.week+'|'+d.medit; mealOpen=mealOpen===k?null:k; renderShop(); return; }
+  if(d.mclose){ mealOpen=null; renderShop(); return; }
+  if(d.mclear){ delete W()[d.mclear]; mealOpen=null; save(); renderShop(); return; }
+  if(d.midea){ const idea=mealIdea(); if(!idea) return alert('Ton stock est vide (ou tout est déjà prévu). Coche tes courses puis « Retirer les articles pris », ou ajoute ce que tu as dans « Mon stock ».');
+    W()[d.midea]=idea; save(); renderShop(); return; }
+  if(d.meaten){ const sl=W()[d.meaten]; if(!sl) return; sl.eaten=!sl.eaten;
+    (sl.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s) s.n=Math.max(0,s.n+(sl.eaten?-1:1)); });
+    if(sl.eaten) pop('😋'); save(); renderShop(); return; }
+  /* stock */
+  if(d.stq){ const s=S.stock.find(x=>x.id===d.id); if(s){ s.n=Math.max(0,s.n+(+d.stq)); save(); renderShop(); } return; }
+  if(d.stdel){ S.stock=S.stock.filter(x=>x.id!==d.stdel); save(); renderShop(); return; }
+  if(d.stbuy){ const s=S.stock.find(x=>x.id===d.stbuy); if(!s) return;
+    const old=[...S.shop.items].reverse().find(i=>i.text===s.text);
+    S.shop.items.push({id:uid(),cat:s.cat,text:s.text,qty:1,price:old?old.price:0,done:false,m:S.shop.cur,store:old?old.store:SHOP_DEF_STORE});
+    save(); pop('🛒'); alert(`« ${shortName(s.text)} » ajouté à ta liste de ${monthLabel(S.shop.cur).toLowerCase()}.`); return; }
+  /* fêtes */
+  if(d.evnew){ const t=PARTY_TPL[d.evnew]; let name=t.name();
+    if(d.evnew!=='noel'){ name=(prompt(d.evnew==='anniv'?'Anniversaire de qui ?':'Nom de la fête ?','')||'').trim(); if(!name) return; if(d.evnew==='anniv') name='Anniversaire de '+name; }
+    S.events.push({id:uid(),type:d.evnew,name,date:t.date(),budget:null,gifts:[],todo:t.todo.map(text=>({id:uid(),text,done:false}))}); save(); renderShop(); return; }
+  if(d.evren){ const ev=findEv(d.evren), n=(prompt('Nouveau nom ?',ev.name)||'').trim(); if(n){ ev.name=n; save(); renderShop(); } return; }
+  if(d.evdel){ const ev=findEv(d.evdel); if(confirm(`Supprimer « ${ev.name} » et sa liste de cadeaux ?`)){ S.events=S.events.filter(x=>x!==ev); save(); renderShop(); } return; }
+  if(d.gdel){ const {e:ev,id}=splitRef(d.gdel); ev.gifts=ev.gifts.filter(g=>g.id!==id); save(); renderShop(); return; }
+  if(d.tdel){ const {e:ev,id}=splitRef(d.tdel); ev.todo=ev.todo.filter(x=>x.id!==id); save(); renderShop(); return; }
+  if(d.gshop){ const {e:ev,id}=splitRef(d.gshop), g=ev.gifts.find(x=>x.id===id);
+    const m=ev.date&&ev.date>=todayKey()?ev.date.slice(0,7):S.shop.cur, item={id:uid(),cat:'autre',text:`🎁 ${g.idea}${g.who?' (pour '+g.who+')':''}`,qty:1,price:+g.price||0,done:false,m,store:g.store||SHOP_DEF_STORE};
+    S.shop.items.push(item); g.shopId=item.id; save(); renderShop(); pop('🎁'); return; }
+});
+$('#tab-shop').addEventListener('change',e=>{
+  const t=e.target, d=t.dataset;
+  if(d.evdate){ findEv(d.evdate).date=t.value; save(); renderShop(); return; }
+  if(d.evbudget){ const v=parseAmt(t.value); if(Number.isNaN(v)) return alert('Budget invalide (exemple : 80 ou 80,50).'); findEv(d.evbudget).budget=v; save(); renderShop(); return; }
+  if(d.gdone){ const {e:ev,id}=splitRef(d.gdone); ev.gifts.find(x=>x.id===id).done=t.checked; if(t.checked) pop('🎁'); save(); renderShop(); return; }
+  if(d.tdone){ const {e:ev,id}=splitRef(d.tdone); ev.todo.find(x=>x.id===id).done=t.checked; if(t.checked) pop('✨'); save(); renderShop(); return; }
+});
+$('#tab-shop').addEventListener('submit',e=>{
+  const f=e.target, d=f.dataset, v=k=>{ const i=f.querySelector(`[data-k=${k}]`); return i?i.value.trim():''; };
+  if(d.meal){ e.preventDefault(); const uses=[...f.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value), text=v('text');
+    const W=S.meals[S.shop.week]||(S.meals[S.shop.week]={}), old=W[d.meal];
+    if(old&&old.eaten) (old.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s) s.n++; }); // on rouvre un repas mangé : on remet le stock
+    if(!text&&!uses.length) delete W[d.meal]; else W[d.meal]={text:text||uses.map(id=>shortName((S.stock.find(s=>s.id===id)||{}).text||'')).join(' + '),uses,eaten:false};
+    mealOpen=null; save(); renderShop(); return; }
+  if(d.stockadd){ e.preventDefault(); const text=v('text'); if(!text) return;
+    S.stock.push({id:uid(),text,cat:v('cat')||'sale',n:Math.max(1,parseInt(v('n'),10)||1)}); save(); renderShop(); return; }
+  if(d.giftadd){ e.preventDefault(); const idea=v('idea'); if(!idea) return alert('Écris une idée de cadeau.');
+    const p=parseAmt(v('price')); if(Number.isNaN(p)) return alert('Prix invalide (exemple : 12,99).');
+    findEv(d.giftadd).gifts.push({id:uid(),who:v('who'),idea,price:p||0,store:v('store'),done:false}); save(); renderShop(); return; }
+  if(d.todoadd){ e.preventDefault(); const text=v('text'); if(!text) return; findEv(d.todoadd).todo.push({id:uid(),text,done:false}); save(); renderShop(); return; }
+});
+
+/* ---------- Pas à la maison / vacances ----------
+   S.away = {type:'vac'|'out', from, until} ; S.awayHist = anciennes absences (pour ne pas casser la série) */
+const AWAY_TYPES={vac:'🏖️ En vacances',out:'🚪 Pas à la maison'};
+function isAway(){ const k=todayKey(); return !!(S.away&&S.away.from<=k&&k<=S.away.until); }
+function awayDay(k){ return (S.awayHist||[]).some(r=>r.from<=k&&k<=r.until)||!!(S.away&&S.away.from<=k&&k<=S.away.until); }
+const dLabel=iso=>new Date(iso+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+if(S.away&&S.away.until<todayKey()){ (S.awayHist=S.awayHist||[]).push(S.away); S.away=null; } // absence terminée : on l'archive
+function awayBanner(){
+  if(!isAway()) return '';
+  return `<div class="card awaycard"><h2>${AWAY_TYPES[S.away.type]||AWAY_TYPES.vac}</h2><p class="sub">Jusqu'au ${esc(dLabel(S.away.until))}. Tes routines ne gardent que l'essentiel, le ménage est en pause, et ta série ne se casse pas.</p>
+    <div class="row" style="justify-content:flex-start"><button class="primary" data-awayend="1">🏠 Je suis rentré·e</button></div></div>`;
+}
+function awayPauseHtml(){
+  return `<div class="card routine awaycard"><h2>🧹 Ménage en pause</h2><p class="sub">${AWAY_TYPES[S.away.type]||''} jusqu'au ${esc(dLabel(S.away.until))} : pas de ménage à faire. Au retour, je reprends doucement, quelques tâches par jour, sans tout rattraper d'un coup.</p>
+    <div class="row" style="justify-content:flex-start"><button class="primary" data-awayend="1">🏠 Je suis rentré·e</button></div></div>`;
+}
+function awayForm(){
+  const k=todayKey();
+  if(S.away&&S.away.until>=k){ const now=isAway();
+    return `<p class="sub">${now?'En ce moment':'Prévu'} : <b>${AWAY_TYPES[S.away.type]}</b> du ${esc(dLabel(S.away.from))} au ${esc(dLabel(S.away.until))}.</p>
+      <div class="row" style="justify-content:flex-start"><button class="primary" data-awayend="1">${now?'🏠 Je suis rentré·e':'Annuler'}</button></div>`; }
+  return `<p class="sub">Tu pars ou tu dors ailleurs ? Les routines gardent seulement l'essentiel, le ménage se met en pause, et ta série ne se casse pas.</p>
+    <form data-awayform="1" class="row" style="justify-content:flex-start;align-items:center">
+      <select data-k="type" style="width:auto">${Object.entries(AWAY_TYPES).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select>
+      <label class="sub" style="display:flex;gap:6px;align-items:center">du <input type="date" data-k="from" value="${k}" style="width:auto"></label>
+      <label class="sub" style="display:flex;gap:6px;align-items:center">au <input type="date" data-k="until" value="${addDays(k,6)}" style="width:auto"></label>
+      <button class="primary">Activer</button></form>`;
+}
+function renderAwayCard(){ const c=$('#awayCard'); if(c) c.innerHTML=`<h2>🏖️ Pas à la maison ?</h2>${awayForm()}`; }
+function refreshAway(){ renderAll(); renderAwayCard(); if(!$('#tab-home').classList.contains('hidden')&&S.home) renderHome(); }
+function awayHtml(){
+  return `<div class="card awaycard"><h2>🏖️ Pas à la maison</h2>${awayForm()}</div>${tripHtml()}`;
+}
+/* Valise : quantités selon la durée */
+const TRIP_DUR=[[2,'Week-end'],[5,'5 jours'],[7,'1 semaine'],[15,'15 jours']];
+const TRIP_OPTS=[['hot','☀️ Il fera chaud'],['cold','❄️ Il fera froid'],['swim','🏊 Piscine / plage'],['sport','🏃 Sport'],['meds','💊 Médicaments'],['cats','🐱 Les chats restent à la maison']];
+let tripDraft=null;
+function tripItems(d,o){
+  const c=Math.min(d,7), pl=(n,s,p)=>`${n} ${n>1?(p||s+'s'):s}`, L=[];
+  const add=(g,t)=>L.push({id:uid(),g,text:t,done:false});
+  add('👕 Vêtements',pl(c+1,'sous-vêtement')); add('👕 Vêtements',pl(c+1,'paire de chaussettes','paires de chaussettes'));
+  add('👕 Vêtements',pl(c,'t-shirt / haut','t-shirts / hauts')); add('👕 Vêtements',pl(Math.max(1,Math.ceil(c/3)),'pantalon / jupe','pantalons / jupes'));
+  add('👕 Vêtements',pl(d>3?2:1,'pyjama')); add('👕 Vêtements','Chaussures confortables (aux pieds)');
+  if(d>=5) add('👕 Vêtements','Une tenue un peu habillée');
+  if(d>7) add('👕 Vêtements','Lessive sur place prévue : vêtements pour 7 jours');
+  if(o.hot){ add('👕 Vêtements',pl(Math.max(1,Math.ceil(c/2)),'short')); add('👕 Vêtements','Casquette / chapeau'); add('👕 Vêtements','Lunettes de soleil'); }
+  if(o.cold){ add('👕 Vêtements','Manteau chaud'); add('👕 Vêtements',pl(Math.max(1,Math.ceil(c/3)),'pull')); add('👕 Vêtements','Bonnet, écharpe, gants'); }
+  if(o.swim){ add('👕 Vêtements','Maillot de bain'); add('👕 Vêtements','Serviette de plage'); add('👕 Vêtements','Tongs'); }
+  if(o.sport){ add('👕 Vêtements','Tenue de sport'); add('👕 Vêtements','Baskets'); }
+  add('👕 Vêtements','Un sac pour le linge sale');
+  ['Brosse à dents + dentifrice','Déodorant',d<=5?'Gel douche / shampoing (petits formats)':'Gel douche + shampoing','Brosse / peigne','Rasoir si besoin','Protections périodiques si besoin'].forEach(t=>add('🧴 Toilette',t));
+  if(o.hot||o.swim) add('🧴 Toilette','Crème solaire');
+  if(o.meds){ add('💊 Santé',`Mes médicaments pour ${d} jours + 2 jours de marge`); add('💊 Santé','Ordonnance (photo dans le téléphone)'); add('💊 Santé','Carte Vitale + carte mutuelle'); add('💊 Santé','Thermomètre (routine du matin)'); }
+  ['Téléphone + chargeur','Écouteurs','Papiers d\'identité','Carte bancaire','Clés de la maison','De quoi m\'occuper (livre, jeu…)'].forEach(t=>add('🔌 Utile',t));
+  if(d>=2) add('🔌 Utile','Batterie externe');
+  ['Sortir la poubelle','Frigo : manger ou donner ce qui va périmer','Fermer fenêtres et volets','Débrancher les appareils','Plantes : arroser ou demander à quelqu\'un','Activer « Pas à la maison » dans l\'appli'].forEach(t=>add('🏠 Avant de partir',t));
+  if(o.cats){ const C=catsOf(), kg=(C.n*C.g*(d+1)/1000).toFixed(1).replace('.',',');
+    add('🐱 Les chats',`Organiser la garde : qui passe, et tous les combien ?`);
+    add('🐱 Les chats',`Laisser ~${kg} kg de croquettes (${C.n} chat${C.n>1?'s':''} × ${d} jours + 1 de marge)`);
+    add('🐱 Les chats',`${C.n+1} litière${C.n+1>1?'s':''} propres + sac de litière de réserve`);
+    add('🐱 Les chats','Eau fraîche (fontaine ou bols pleins)');
+    add('🐱 Les chats','Laisser le numéro du vétérinaire et le mien');
+    if(d<=2) add('🐱 Les chats','Distributeur de croquettes et d\'eau pour le week-end'); }
+  return L;
+}
+function tripHtml(){
+  const T=S.trip;
+  if(!T||tripDraft){ const dr=tripDraft||(tripDraft={d:2,o:{meds:true,cats:catsOf().n>0}});
+    return `<div class="card routine"><h2>🧳 Faire ma valise</h2><p class="sub">Choisis la durée : je calcule ce qu'il faut emporter (sous-vêtements, t-shirts…) et je fais la liste à cocher.</p>
+      <div class="row seg">${TRIP_DUR.map(([n,l])=>`<button data-tripd="${n}" class="${dr.d===n?'on':''}">${l}</button>`).join('')}</div>
+      <label class="sub" style="display:flex;gap:8px;align-items:center;margin:8px 0">Ou nombre de jours : <input type="number" min="1" max="60" data-tripdays="1" value="${dr.d}" style="width:80px"></label>
+      <div class="chips">${TRIP_OPTS.filter(([k])=>k!=='cats'||catsOf().n>0).map(([k,l])=>`<label class="chip pick"><input type="checkbox" data-tripo="${k}" ${dr.o[k]?'checked':''}> ${l}</label>`).join('')}</div>
+      <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="primary" data-tripgo="1">🧳 Préparer ma valise (${dr.d} jour${dr.d>1?'s':''})</button>${T?'<button class="ghost" data-tripcancel="1">Annuler</button>':''}</div></div>`; }
+  const n=T.items.filter(x=>x.done).length, groups=[...new Set(T.items.map(x=>x.g))];
+  return `<div class="card routine"><h2>🧳 Ma valise · ${T.d} jour${T.d>1?'s':''} <span class="chip">${n}/${T.items.length}</span></h2>
+    <div class="bar"><i style="width:${T.items.length?n/T.items.length*100:0}%"></i></div>
+    ${n===T.items.length?'<p class="msg">🎉 Valise prête ! Bon voyage.</p>':''}
+    ${groups.map(g=>`<h3 class="evh">${esc(g)}</h3>${T.items.filter(x=>x.g===g).map(x=>`<div class="step ${x.done?'done':''}"><label><input type="checkbox" data-tripi="${x.id}" ${x.done?'checked':''}><span class="t">${esc(x.text)}</span></label><button class="ghost" data-tripdel="${x.id}" aria-label="Supprimer">✕</button></div>`).join('')}`).join('')}
+    <form data-tripadd="1" class="row" style="flex-wrap:nowrap;margin-top:10px"><input data-k="text" placeholder="Ajouter quelque chose…" autocomplete="off"><button class="primary">+</button></form>
+    <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="ghost" data-tripnew="1">🧳 Nouvelle valise</button></div></div>`;
+}
+/* ---------- Mes chats ----------  S.cats = {n, g (grammes de croquettes / chat / jour), have:{clé:true}} */
+function catsOf(){ return S.cats||(S.cats={n:2,g:55,have:{}}); }
+function catGear(n){ return [
+  ['litiere',n+1,'Bac à litière','Bacs à litière','La règle : 1 par chat + 1. Dans des endroits calmes, pas à côté des gamelles.'],
+  ['gamelle',n,'Gamelle de croquettes','Gamelles de croquettes','1 par chat.'],
+  ['eau',n,'Point d\'eau (bol ou fontaine)','Points d\'eau (bols ou fontaine)','Au moins 1 par chat, loin de la nourriture et de la litière.'],
+  ['griffoir',n,'Griffoir','Griffoirs','1 par chat (un arbre à chat compte).'],
+  ['dodo',n,'Panier / coin dodo','Paniers / coins dodo','1 par chat, en hauteur si possible.'],
+  ['caisse',n,'Caisse de transport','Caisses de transport','1 par chat, pour le vétérinaire.'],
+  ['brosse',1,'Brosse','Brosses',''],['griffes',1,'Coupe-griffes','Coupe-griffes',''],['jouets',n*2,'Jouet','Jouets','Cannes à pêche, balles… pour jouer chaque jour.'],
+]; }
+function catTasks(n){ return [
+  ['litiere',`Nettoyer ${n+1>1?`les ${n+1} litières`:'la litière'} (retirer les selles)`,'d',2*(n+1)],
+  ['eau','Changer l\'eau et laver les gamelles','d',3],
+  ['litiere2','Changer toute la litière + laver les bacs','w',5*(n+1)],
+  ['brosse',`Brosser ${n>1?'les chats':'le chat'}`,'w',5*n],
+  ['poils','Aspirer les poils (canapé, arbre à chat)','w',10],
+  ['stock','Vérifier le stock de croquettes et de litière','w',2],
+  ['para','Antiparasitaire (puces / vers)','m',5],
+  ['griffes','Couper les griffes','m',5*n],
+]; }
+function croqStock(){ // croquettes dans la liste de courses du mois (en kg)
+  let kg=0; shopItems().filter(x=>x.cat==='animal'&&/croquette/i.test(x.text)).forEach(x=>{ const m=String(x.text).match(/(\d+(?:[.,]\d+)?)\s*kg/i); if(m) kg+=parseFloat(m[1].replace(',','.'))*(x.qty||1); });
+  return kg;
+}
+function catsHtml(){
+  const C=catsOf(), n=C.n, room=S.home.rooms.find(r=>r.type==='chats'), day=n*C.g, kg=croqStock();
+  return `<div class="card"><h2>🐱 Mes chats</h2>
+    <div class="stepper"><span>Nombre de chats</span><span class="ctl"><button data-catn="-1" aria-label="Moins">−</button><b>${n}</b><button data-catn="1" aria-label="Plus">+</button></span></div></div>
+    ${n?`<div class="card routine"><h2>🧰 Ce qu'il faut pour ${n} chat${n>1?'s':''}</h2><p class="sub">Coche ce que tu as déjà. 🛒 ajoute ce qui manque à ta liste de courses.</p>
+      ${catGear(n).map(([k,q,s,p,tip])=>`<div class="step ${C.have[k]?'done':''}"><label><input type="checkbox" data-cathave="${k}" ${C.have[k]?'checked':''}><span class="t"><b>${q}</b> ${q>1?p:s}${tip?`<br><span class="sub">${tip}</span>`:''}</span></label>
+        ${C.have[k]?'':`<button class="ghost" data-catbuy="${k}" title="Ajouter à ma liste de courses">🛒</button>`}</div>`).join('')}</div>
+    <div class="card routine"><h2>🥣 Croquettes</h2>
+      <label class="sub" style="display:flex;gap:8px;align-items:center">Par chat et par jour : <input data-catg="1" type="number" min="10" max="200" step="5" value="${C.g}" style="width:80px"> g</label>
+      <p class="sub">Regarde le tableau sur le paquet (selon le poids du chat). Pour ${n} chat${n>1?'s':''} : <b>${day} g par jour</b>, environ <b>${(day*30/1000).toFixed(1).replace('.',',')} kg par mois</b>.</p>
+      ${kg?`<p class="msg">🛒 Dans ta liste de ${esc(monthLabel(S.shop.cur).toLowerCase())} : ${String(kg).replace('.',',')} kg de croquettes, soit environ <b>${Math.floor(kg*1000/day)} jours</b>.</p>`:''}</div>
+    <div class="card routine"><h2>🧹 Soins dans mon ménage</h2>
+      ${catTasks(n).map(([k,t,f,m])=>`<div class="step"><span class="t" style="flex:1">${esc(t)}</span><span class="chip">${FREQ[f].label}</span></div>`).join('')}
+      <p class="sub">🩺 Et une fois par an : vaccins et visite chez le vétérinaire.</p>
+      <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="primary" data-catroom="1">${room?`🔄 Mettre à jour pour ${n} chat${n>1?'s':''}`:'➕ Ajouter ces soins à mon ménage'}</button></div>
+      ${room?'<p class="sub">✓ Les soins sont dans ton ménage du jour (pièce « 🐱 Chats »).</p>':''}</div>`:''}`;
+}
+/* Clics, cases et formulaires : vacances, valise, chats (dans Ménage, Routines et Aujourd'hui) */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return; const d=b.dataset;
+  if(d.awayend){ if(S.away){ if(S.away.from<=todayKey()) (S.awayHist=S.awayHist||[]).push({...S.away,until:todayKey()}); S.away=null; save(); pop('🏠'); refreshAway(); } return; }
+  if(d.tripd){ tripDraft.d=+d.tripd; renderHome(); return; }
+  if(d.tripgo){ S.trip={d:tripDraft.d,o:{...tripDraft.o},items:tripItems(tripDraft.d,tripDraft.o)}; tripDraft=null; save(); renderHome(); return; }
+  if(d.tripcancel){ tripDraft=null; renderHome(); return; }
+  if(d.tripnew){ if(!S.trip.items.some(x=>x.done)||confirm('Recommencer une nouvelle valise ? La liste actuelle sera effacée.')){ tripDraft={d:S.trip.d,o:{...S.trip.o}}; renderHome(); } return; }
+  if(d.tripdel){ S.trip.items=S.trip.items.filter(x=>x.id!==d.tripdel); save(); renderHome(); return; }
+  if(d.catn){ const C=catsOf(); C.n=Math.max(0,Math.min(12,C.n+(+d.catn))); save(); renderHome(); return; }
+  if(d.catbuy){ const C=catsOf(), g=catGear(C.n).find(x=>x[0]===d.catbuy);
+    S.shop.items.push({id:uid(),cat:'animal',text:`${g[1]} × ${g[1]>1?g[3]:g[2]}`.replace(/^1 × /,''),qty:1,price:0,done:false,m:S.shop.cur,store:'Action'});
+    save(); pop('🛒'); alert('Ajouté à ta liste de courses (magasin : Action, à changer avec ✏️ si besoin).'); return; }
+  if(d.catroom){ const n=catsOf().n, tpl=catTasks(n); let room=S.home.rooms.find(r=>r.type==='chats');
+    if(!room){ room={id:uid(),type:'chats',emoji:'🐱',name:'Chats',tasks:[]}; S.home.rooms.push(room); }
+    tpl.forEach(([ck,text,f,min])=>{ const t=room.tasks.find(x=>x.ck===ck); if(t){ t.text=text; t.min=min; } else room.tasks.push({id:uid(),ck,text,f,min}); });
+    S.home.pick=null; save(); pop('🐱'); renderHome(); return; }
+});
+document.addEventListener('change',e=>{
+  const t=e.target, d=t.dataset;
+  if(d.tripdays){ const v=Math.max(1,Math.min(60,parseInt(t.value,10)||1)); tripDraft.d=v; renderHome(); return; }
+  if(d.tripo){ tripDraft.o[d.tripo]=t.checked; return; }
+  if(d.tripi){ const x=S.trip.items.find(i=>i.id===d.tripi); x.done=t.checked; if(t.checked&&S.trip.items.every(i=>i.done)) pop('🧳'); save(); renderHome(); return; }
+  if(d.cathave){ const C=catsOf(); if(t.checked) C.have[d.cathave]=true; else delete C.have[d.cathave]; save(); renderHome(); return; }
+  if(d.catg){ catsOf().g=Math.max(10,Math.min(200,parseInt(t.value,10)||55)); save(); renderHome(); return; }
+});
+document.addEventListener('submit',e=>{
+  const f=e.target, d=f.dataset, v=k=>{ const i=f.querySelector(`[data-k=${k}]`); return i?i.value.trim():''; };
+  if(d.awayform){ e.preventDefault(); const from=v('from')||todayKey(), until=v('until');
+    if(!until||until<from) return alert('Choisis une date de retour après la date de départ.');
+    if(until<todayKey()) return alert('La date de retour est déjà passée.');
+    S.away={type:v('type')||'vac',from,until}; save(); pop('🏖️'); refreshAway(); return; }
+  if(d.tripadd){ e.preventDefault(); const text=v('text'); if(!text) return; S.trip.items.push({id:uid(),g:'➕ Ajouté par moi',text,done:false}); save(); renderHome(); return; }
+});
+
 /* ---------- Navigation ---------- */
 function renderAll(skipFocus){ renderHeader(); renderToday(); if(!skipFocus) renderFocus(); }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
@@ -1525,12 +1913,12 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==='home') renderHome();
   if(b.dataset.tab==='focus') renderFocus();
   if(b.dataset.tab==='dump') renderDump();
-  if(b.dataset.tab==='edit') renderEdit();
+  if(b.dataset.tab==='edit'){ renderEdit(); renderAwayCard(); }
   $('#curTab').textContent=b.textContent.trim().replace(/\s+/g,' ');
   $('#nav').classList.remove('open');
   window.scrollTo(0,0);
 });
-renderAll(); renderDump(); renderEdit();
+renderAll(); renderDump(); renderEdit(); renderAwayCard();
 /* ---------- Synchronisation entre appareils (Supabase) ---------- */
 const SB_URL='https://fazxmveukiqpcefzghsr.supabase.co', SB_KEY='sb_publishable_VPYYOesD0T97zyl3V9b0Ng_VUXQ-lph';
 let sb=null, sbUser=null, syncMsg='', pushTimer=null;
