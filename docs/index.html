@@ -188,6 +188,7 @@ label.chip.pick input{width:18px;height:18px;min-height:0;padding:0;margin:0;fle
 .ideapick{width:100%;display:flex;flex-direction:column;gap:6px;background:var(--soft);border-radius:14px;padding:10px;margin-top:6px}
 .ideaopt{display:flex;align-items:center;gap:10px;width:100%;border:2px solid var(--line);border-radius:14px;padding:8px 10px;background:var(--card);color:var(--ink);font-weight:400}
 .ideaopt:hover{border-color:var(--pink-deep)}
+.ideacourse{display:block;line-height:1.35;margin:1px 0}
 .ideanum{flex:none;width:26px;height:26px;border-radius:50%;background:var(--pink-deep);color:#fff;display:grid;place-items:center;font-weight:800}
 .stsearch{position:relative;margin:6px 0 4px}
 .stsearch input{width:100%;padding-right:44px}
@@ -1816,22 +1817,61 @@ const NOT_MEAL=/sauce|ketchup|moutarde|mayo|pesto|coulis|concentre|vinaigrette|h
 const SOUP=/soupe|veloute|potage|gaspacho/;
 const isNotMeal=s=>NOT_MEAL.test(noAcc(String(s.text).toLowerCase()));
 const isSoup=s=>SOUP.test(noAcc(String(s.text).toLowerCase()));
-function lunchFromStock(){
-  const ok=s=>availOf(s)>0&&!FG.sweet.test(s.text)&&!isNotMeal(s), pick=(re,not,soupOk)=>{ const l=S.stock.filter(s=>ok(s)&&re.test(noAcc(s.text))&&!(not&&not.test(noAcc(s.text)))&&(soupOk||!isSoup(s))); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
-  const pr=pick(FGN.prot,/fromage|vache qui rit|feta|mozzarella/i)||pick(FGN.prot), vg=pick(FGN.veg,/puree(?![^+]*legume)/i,!pr||!isSoup(pr)), sc=pick(FGN.whole)||pick(FGN.starch);
-  const parts=[...new Set([pr,vg,sc].filter(Boolean))]; if(!parts.length) return null;
-  const q={}, hint=s=>{ const r=recoQty(s); q[s.id]=r.n; return r.txt; };
-  return {text:parts.map(s=>`${shortName(s.text)} (${hint(s)})`).join(' + '),uses:parts.map(s=>s.id),q,stockOnly:true};
+/* Repas complet comme dans la vraie vie : entrée (crudités ou potage), plat (protéine + féculent + légume
+   d'accompagnement + un peu de sauce pour le goût), puis fromage OU dessert. Uniquement avec mon stock. */
+const NT=s=>noAcc(String(s.text));
+const SAUCE=/sauce|ketchup|moutarde|mayo|pesto|vinaigrette|creme fraiche|bolognaise|carbonara|coulis/;
+const ENTREE=/salade|crudite|rapee|concombre|radis|betterave|celeri|tomate cerise|taboule/;
+const VEGX=/legume|butternut|potiron|courge|carotte|brocoli|epinard|haricot vert|ratatouille|courgette|chou|poireau|petits? pois|champignon|aubergine|poivron/;
+const SALAD_SAUCE=/crudite|vinaigrette/;
+const CHEESE=/fromage(?! blanc)|emmental|comte|camembert|chevre|brie|vache qui rit|kiri|babybel|raclette|mozza|feta|roquefort|tomme/;
+const DESSERT_OK=/compote|yaourt|yogourt|fromage blanc|skyr|petit suisse|pomme|poire|banane|orange|clementine|mandarine|kiwi|fraise|framboise|myrtille|raisin|ananas|mangue|peche|abricot|prune|fruit/;
+const DESSERT_TREAT=/liegeois|creme dessert|danette|mousse|flan|gateau|cookie|biscuit|chocolat|glace|tarte|patisserie/;
+function mealFromStock(slot){
+  const free=s=>availOf(s)>0, rnd=l=>l.length?l[Math.floor(Math.random()*l.length)]:null, has=(s,re)=>re.test(NT(s));
+  const L=re=>S.stock.filter(s=>free(s)&&has(s,re));
+  const meal=s=>free(s)&&!isNotMeal(s)&&!has(s,SAUCE);
+  // plat
+  const pr=rnd(S.stock.filter(s=>meal(s)&&has(s,FGN.prot)&&!has(s,CHEESE)&&!isSoup(s)&&!has(s,DESSERT_OK)));
+  const wh=S.stock.filter(s=>meal(s)&&has(s,FGN.whole)&&!isSoup(s)&&!has(s,VEGX)&&s!==pr), st=S.stock.filter(s=>meal(s)&&(has(s,FGN.starch)||has(s,FGN.whole))&&!isSoup(s)&&!has(s,VEGX)&&s!==pr);
+  const sc=wh.length&&Math.random()<.6?rnd(wh):rnd(st);
+  // entrée : crudités ou UN potage
+  const ent=Math.random()<.7?rnd(S.stock.filter(s=>meal(s)&&(has(s,ENTREE)||isSoup(s))&&s!==pr)):null;
+  // légume d'accompagnement (purée butternut, haricots, ratatouille…) : pas de 2e soupe, pas la même chose que l'entrée
+  const isVeg=s=>has(s,FGN.veg)||has(s,VEGX);
+  let side=rnd(S.stock.filter(s=>meal(s)&&isVeg(s)&&!isSoup(s)&&!has(s,ENTREE)&&s!==pr&&s!==sc));
+  if(!ent&&!side) side=rnd(S.stock.filter(s=>meal(s)&&isVeg(s)&&!isSoup(s)&&s!==pr&&s!==sc));
+  else if(ent&&side&&Math.random()<.35) side=null;
+  // sauce pour le goût : tomate avec les pâtes de préférence
+  const salad=[ent,side].find(x=>x&&has(x,ENTREE)), sSauce=salad?rnd(L(SALAD_SAUCE)):null;
+  const sauces=L(SAUCE).filter(x=>!has(x,SALAD_SAUCE)), pasta=sc&&has(sc,/pate|spaghetti|tagliatelle|penne|macaroni|coquillette/);
+  const sauce=sauces.length&&(pasta||Math.random()<.4)?(pasta&&rnd(sauces.filter(x=>has(x,/tomate|bolognaise|carbonara|creme/)))||rnd(sauces)):null;
+  // fin de repas : fromage OU dessert léger (les desserts sucrés seulement s'il n'y a rien d'autre, et pas tous les jours)
+  const okD=L(DESSERT_OK).filter(x=>x!==pr), treat=L(DESSERT_TREAT), chz=L(CHEESE).filter(x=>x!==pr);
+  const fin=Math.random()<.85?(Math.random()<.4&&chz.length?rnd(chz):rnd(okD)||(Math.random()<.3?rnd(treat):null)||rnd(chz)):null;
+  // le fromage se mange avec un peu de pain (complet de préférence), sauf si le pain est déjà le féculent du plat
+  const breads=L(/\bpain|baguette|ficelle/).filter(x=>!isNotMeal(x)), cheeseBread=fin&&has(fin,CHEESE)&&!(sc&&has(sc,/\bpain|baguette/))?(rnd(breads.filter(x=>has(x,FGN.whole)))||rnd(breads)):null;
+  const courses=[['🥗 Entrée',[ent,salad===ent?sSauce:null]],['🍽️ Plat',[pr,sc,side,sauce,salad===side?sSauce:null]],[fin&&has(fin,CHEESE)?'🧀 Fromage':'🍏 Dessert',[fin,cheeseBread]]]
+    .map(([l,a])=>[l,[...new Set(a.filter(Boolean))]]).filter(c=>c[1].length);
+  const ids=[...new Set(courses.flatMap(c=>c[1].map(x=>x.id)))];
+  if(!pr&&!sc&&!side&&!ent) return null;
+  const q={}; let small=false;
+  courses.forEach(([l,a])=>a.forEach(x=>{ const r=recoQty(x); let n=r.n;
+    if(x===cheeseBread){ n=Math.round(n/2*100)/100||n; } // un petit morceau de pain avec le fromage
+    if(l==='🥗 Entrée'&&side&&!isSoup(x)){ n=Math.round(n/2*100)/100||n; small=true; } // entrée + légume : petite entrée
+    q[x.id]=n; }));
+  const word=x=>shortName(x.text);
+  return {text:courses.map(([l,a])=>`${l.split(' ')[1]} : ${a.map(word).join(' + ')}`).join(' · '),uses:ids,q,stockOnly:true,
+    courses:courses.map(([l,a])=>[l,a.map(x=>x.id)]),small};
 }
+const lunchFromStock=()=>mealFromStock('midi');
 function healthIdea(slot){
   if(slot==='midi') return lunchFromStock();
   // 1) avec le stock : protéine + légume (ou pain complet le matin) + féculent (complet de préférence)
   const ok=s=>availOf(s)>0, pick=re=>{ const l=S.stock.filter(s=>ok(s)&&re.test(s.text)); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
   if(slot==='matin'){ const e=pick(/œuf|oeuf/i), b=pick(/pain/i), c=pick(/fromage|emmental|comté|vache qui rit|camembert|raclette/i), v=pick(/tomate|concombre|radis|crudité/i);
     const u=[e,b,c,v].filter(Boolean); if(u.length>=2) return {text:u.map(s=>`${shortName(s.text)} (${recoQty(s).txt})`).join(' + '),uses:u.map(s=>s.id),q:Object.fromEntries(u.map(s=>[s.id,recoQty(s).n]))}; }
-  const ok2=s=>ok(s)&&!isNotMeal(s), pick2=(re,soupOk)=>{ const l=S.stock.filter(s=>ok2(s)&&re.test(noAcc(s.text))&&(soupOk||!isSoup(s))); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
-  const pr=pick2(FGN.prot), vg=pick2(FGN.veg,true), st=pick2(FGN.whole)||pick2(FGN.starch);
-  if(pr&&vg){ const u=[...new Set([pr,vg,st].filter(Boolean))]; return {text:u.map(s=>shortName(s.text)).join(' + '),uses:u.map(s=>s.id)}; }
+  { const m=mealFromStock(slot); if(m) return m; }
   // 2) sinon : une idée de la liste, en priorité celle dont j'ai le plus d'ingrédients
   const ideas=HEALTH_IDEAS.filter(x=>x[0]===slot).map(x=>({x,have:ideaNeed(x).filter(([n])=>inStock(n)).length})).sort((a,b)=>b.have-a.have||Math.random()-.5);
   const best=ideas.filter(i=>i.have===ideas[0].have), c=best[Math.floor(Math.random()*best.length)].x;
@@ -1849,9 +1889,11 @@ function ideaPickHtml(slot){
   const L=ideaPick.list;
   return `<div class="ideapick"><b class="sub">💡 Choisis ton repas${slot==='midi'?' (avec ton stock)':''} :</b>
     ${L.map((x,i)=>{ const used=(x.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean);
-      const name=used.length?used.map(s=>shortName(s.text)).join(' + '):x.text;
-      const det=used.map(s=>`${esc(shortName(s.text))} : ${esc(recoQty(s).txt.replace(/ · .*/,''))}`).join(' · ');
-      return `<button type="button" class="ideaopt" data-ipick="${i}"><span class="ideanum">${i+1}</span><span style="flex:1;min-width:0;text-align:left"><b>${esc(name)}</b>${det?`<br><span class="sub">${det}</span>`:''}${S.health.on&&balanceOf(x,slot).ok?' <span class="sub">· ⚖️ équilibré</span>':''}</span></button>`; }).join('')}
+      const qt=s=>{ const r=recoQty(s); const t=r.txt.replace(/ · .*/,''); return x.q&&x.q[s.id]<r.n?'petite part : la moitié de '+t:t; };
+      const body=x.courses?x.courses.map(([l,ids])=>{ const a=ids.map(id=>S.stock.find(s=>s.id===id)).filter(Boolean);
+          return `<span class="ideacourse"><b>${esc(l)} :</b> ${a.map(s=>`${esc(shortName(s.text))} <span class="sub">(${esc(qt(s))})</span>`).join(' + ')}</span>`; }).join('')
+        :`<b>${esc(used.length?used.map(s=>shortName(s.text)).join(' + '):x.text)}</b>${used.length?`<br><span class="sub">${used.map(s=>`${esc(shortName(s.text))} : ${esc(qt(s))}`).join(' · ')}</span>`:''}`;
+      return `<button type="button" class="ideaopt" data-ipick="${i}"><span class="ideanum">${i+1}</span><span style="flex:1;min-width:0;text-align:left">${body}${S.health.on&&balanceOf(x,slot).ok?' <span class="sub">· ⚖️ équilibré</span>':''}</span></button>`; }).join('')}
     ${L.length<2?'<p class="sub">Je n\'ai pas trouvé d\'autre idée avec ton stock.</p>':''}
     <div class="row" style="justify-content:flex-start;margin:4px 0 0"><button type="button" class="ghost" data-imore="1">🔄 Autres idées</button><button type="button" class="ghost" data-iclose="1">Annuler</button></div></div>`;
 }
@@ -1943,6 +1985,19 @@ function breakfastHtml(){
 }
 /* Quantité conseillée pour 1 personne (assiette équilibrée), convertie dans l'unité du stock */
 function pkgGrams(t){ const m=String(t).match(/(\d+(?:[.,]\d+)?)\s*(kg|g)\b/i); if(!m) return 0; const v=parseFloat(m[1].replace(',','.')); return m[2].toLowerCase()==='kg'?v*1000:v; }
+/* Poids habituel d'un paquet quand il n'est pas écrit (g ou mL) */
+function defPkg(t,u){
+  if(/soupe|veloute|potage/.test(t)) return 1000;
+  if(/pate|spaghetti|tagliatelle|penne|macaroni|coquillette|riz|semoule|quinoa|boulgour|lentille|pois chiche|haricot sec/.test(t)) return u==='boite'&&/lentille|pois chiche|haricot/.test(t)?265:500;
+  if(/puree|surgele|poelee|ratatouille|legume/.test(t)) return u==='boite'?400:1000;
+  if(/sauce|coulis|ketchup|mayo|moutarde|vinaigrette/.test(t)) return 400;
+  if(/creme fraiche/.test(t)) return 200;
+  if(/\bpain|brioche/.test(t)) return 500;
+  if(/lardon/.test(t)) return 200;
+  if(/fromage|emmental|comte|mozza/.test(t)) return 200;
+  if(/salade/.test(t)) return 250;
+  return 0;
+}
 function recoQty(s){
   const t=noAcc(s.text), u=s.u; let g=0, cnt=1, txt='';
   if(/oeuf|œuf/.test(t)){ cnt=2; txt='2 œufs'; }
@@ -1953,10 +2008,11 @@ function recoQty(s){
   else if(/fromage blanc|yaourt|skyr|compote/.test(t)){ cnt=1; g=150; txt='1 pot (≈ 150 g)'; }
   else if(/fromage|emmental|comte|feta|mozza|raclette|camembert|chevre/.test(t)){ g=30; txt='30 g'; }
   else if(/jambon/.test(t)){ cnt=2; g=80; txt='2 tranches'; }
-  else if(/sauce|ketchup|moutarde|mayo|pesto|coulis|vinaigrette|concentre/.test(t)){ g=40; txt='2 c. à soupe (≈ 40 g), pour le goût'; }
+  else if(/sauce|ketchup|moutarde|mayo|pesto|coulis|vinaigrette|concentre|creme fraiche/.test(t)){ g=40; txt='2 c. à soupe (≈ 40 g), pour le goût'; }
   else if(/huile/.test(t)){ g=10; txt='1 c. à soupe'; }
   else if(/flocon|avoine/.test(t)){ g=40; txt='≈ 40 g (collation, pancakes…)'; }
-  else if(/soupe|veloute/.test(t)){ g=300; txt='1 bol (300 mL)'; }
+  else if(/lardon/.test(t)){ g=50; txt='≈ 50 g'; }
+  else if(/soupe|veloute|potage/.test(t)){ g=300; txt='1 bol (300 mL)'; }
   else if(/pain|baguette/.test(t)){ g=40; txt=/petit/.test(t)?'1 petit pain':'1 tranche (≈ 40 g)'; }
   else if(/pomme de terre|patate|grenaille/.test(t)){ g=150; txt='≈ 150 g'; }
   else if(/puree/.test(t)&&/legume|epinard|brocoli|courgette|carotte|haricot|potiron/.test(t)){ g=200; txt=/surgel/.test(t)||s.cat==='surgele'?'≈ 200 g (½ assiette) · surgelé : pèse-la ou regarde le poids d\'un galet sur le paquet':'≈ 200 g (½ assiette)'; }
@@ -1968,7 +2024,7 @@ function recoQty(s){
   else txt='1 portion';
   let n;
   if(u==='g') n=g||100; else if(u==='kg') n=(g||100)/1000; else if(u==='mL') n=g||200; else if(u==='cL') n=(g||200)/10; else if(u==='L') n=(g||200)/1000;
-  else if(['paquet','boite','sachet','bouteille','brique','barquette'].includes(u)&&g&&cnt===1){ const P=pkgGrams(s.text); n=P?Math.max(0.05,Math.round(g/P*100)/100):1; }
+  else if(['paquet','boite','sachet','bouteille','brique','barquette','pot'].includes(u)&&g&&cnt===1){ const P=pkgGrams(s.text)||defPkg(t,u); n=P?Math.max(0.05,Math.round(g/P*100)/100):1; }
   else n=cnt;
   return {n:Math.round(n*100)/100,txt};
 }
