@@ -1827,7 +1827,7 @@ const FISH=/poisson|colin|cabillaud|saumon|thon|merlu|lieu|sardine|maquereau|tru
 const FISH_SAUCE=/beurre blanc|hollandaise|oseille|aneth|sauce citron|tartare/;
 const PASTA_SAUCE=/tomate|bolognaise|carbonara|creme|pesto|arrabbiata|basilic/;
 const ENTREE=/salade|crudite|rapee|concombre|radis|betterave|celeri|tomate cerise|taboule/;
-const VEGX=/legume|butternut|potiron|courge|carotte|brocoli|epinard|haricot vert|ratatouille|courgette|chou|poireau|petits? pois|champignon|aubergine|poivron/;
+const VEGX=/legume|butternut|potiron|courge|carotte|brocoli|epinard|haricots? verts?|ratatouille|courgette|chou|poireau|petits? pois|champignon|aubergine|poivron/;
 const SALAD_SAUCE=/crudite|vinaigrette/;
 const CHEESE=/fromage(?! blanc)|emmental|comte|camembert|chevre|brie|vache qui rit|kiri|babybel|raclette|mozza|feta|roquefort|tomme/;
 const DESSERT_OK=/compote|yaourt|yogourt|fromage blanc|skyr|petit suisse|pomme|poire|banane|orange|clementine|mandarine|kiwi|fraise|framboise|myrtille|raisin|ananas|mangue|peche|abricot|prune|fruit/;
@@ -1849,9 +1849,14 @@ function mealFromStock(slot){
   const habIds=endHab(slot)?endHabItems(slot).out.map(x=>x.id):[];
   const meal=s=>free(s)&&!isNotMeal(s)&&!has(s,SAUCE)&&!habIds.includes(s.id);
   // plat
-  const pr=rnd(S.stock.filter(s=>meal(s)&&has(s,FGN.prot)&&!has(s,CHEESE)&&!isSoup(s)&&!has(s,DESSERT_OK)));
+  let pr=rnd(S.stock.filter(s=>meal(s)&&has(s,FGN.prot)&&!has(s,CHEESE)&&!isSoup(s)&&!has(s,DESSERT_OK)));
   const wh=S.stock.filter(s=>meal(s)&&has(s,FGN.whole)&&!isSoup(s)&&!has(s,VEGX)&&s!==pr), st=S.stock.filter(s=>meal(s)&&(has(s,FGN.starch)||has(s,FGN.whole))&&!isSoup(s)&&!has(s,VEGX)&&s!==pr);
-  const sc=wh.length&&Math.random()<.6?rnd(wh):rnd(st);
+  let sc=wh.length&&Math.random()<.6?rnd(wh):rnd(st);
+  // mes associations : lentilles ↔ saucisse (de Toulouse)
+  const isLent=x=>x&&has(x,/lentille/), isSau=x=>x&&has(x,/saucisse/);
+  const lentL=S.stock.filter(s=>meal(s)&&isLent(s)), sauL=S.stock.filter(s=>meal(s)&&isSau(s)), sauT=sauL.filter(s=>has(s,/toulouse/));
+  if((isLent(pr)||isLent(sc))&&sauL.length&&Math.random()<.8){ const l=isLent(sc)?sc:pr; pr=rnd(sauT)||rnd(sauL); sc=l; }
+  else if(isSau(pr)&&lentL.length&&!isLent(sc)&&Math.random()<.75) sc=rnd(lentL);
   // entrée : crudités ou UN potage
   const ent=Math.random()<.7?rnd(S.stock.filter(s=>meal(s)&&(has(s,ENTREE)||isSoup(s))&&s!==pr)):null;
   // légume d'accompagnement (purée butternut, haricots, ratatouille…) : pas de 2e soupe, pas la même chose que l'entrée
@@ -1863,7 +1868,9 @@ function mealFromStock(slot){
   const salad=[ent,side].find(x=>x&&has(x,ENTREE)), sSauce=salad?rnd(L(SALAD_SAUCE)):null;
   const sauces=L(SAUCE).filter(x=>!has(x,SALAD_SAUCE)), pasta=sc&&has(sc,/pate|spaghetti|tagliatelle|penne|macaroni|coquillette/);
   // sauce pas obligatoire ; sauces pour poisson (beurre blanc…) seulement avec du poisson ; sauces pour pâtes avec des pâtes
-  const fish=pr&&has(pr,FISH), fits=x=>has(x,FISH_SAUCE)?fish:has(x,PASTA_SAUCE)&&!has(x,/creme fraiche|tomate/)?pasta:true;
+  // haricots verts / lentilles : crème fraîche (ou un peu de beurre) ou nature, rien d'autre
+  const plain=[pr,sc,side].some(x=>x&&has(x,/haricots? verts?|lentille/));
+  const fish=pr&&has(pr,FISH), fits=x=>plain?has(x,/creme fraiche|beurre(?! blanc)/):has(x,FISH_SAUCE)?fish:has(x,PASTA_SAUCE)&&!has(x,/creme fraiche|tomate/)?pasta:true;
   const okS=sauces.filter(fits), pref=fish?okS.filter(x=>has(x,FISH_SAUCE)||has(x,/beurre/)):pasta?okS.filter(x=>has(x,PASTA_SAUCE)||has(x,/beurre/)):okS;
   const sauce=okS.length&&Math.random()<(pasta?.55:.35)?(rnd(pref)||rnd(okS)):null;
   // fin de repas : fromage OU dessert léger (les desserts sucrés seulement s'il n'y a rien d'autre, et pas tous les jours)
