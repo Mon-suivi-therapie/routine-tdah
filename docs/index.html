@@ -1846,25 +1846,32 @@ function endHabItems(slot){
 function mealFromStock(slot){
   const free=s=>availOf(s)>0, rnd=l=>l.length?l[Math.floor(Math.random()*l.length)]:null, has=(s,re)=>re.test(NT(s));
   const L=re=>S.stock.filter(s=>free(s)&&has(s,re));
-  const habIds=endHab(slot)?endHabItems(slot).out.map(x=>x.id):[];
-  const meal=s=>free(s)&&!isNotMeal(s)&&!has(s,SAUCE)&&!habIds.includes(s.id);
+  const habOut=endHab(slot)?endHabItems(slot).out:[], habIds=habOut.map(x=>x.id);
+  const BREAD=/\bpains?\b|baguette|ficelle|brioche|biscotte/, isBread=x=>has(x,BREAD), habBread=habOut.some(isBread);
+  // le petit pain, c'est pour le petit-déj ; un seul pain par repas
+  const meal=s=>free(s)&&!isNotMeal(s)&&!has(s,SAUCE)&&!habIds.includes(s.id)&&!(slot!=='matin'&&has(s,/petits? pains?/));
+  // une seule viande / un seul poisson par plat (les lentilles et pois chiches peuvent accompagner)
+  const isMeat=x=>has(x,FGN.prot)&&!has(x,/lentille|pois chiche|haricots? rouges?/)&&!isSoup(x);
   // plat
   let pr=rnd(S.stock.filter(s=>meal(s)&&has(s,FGN.prot)&&!has(s,CHEESE)&&!isSoup(s)&&!has(s,DESSERT_OK)));
-  const wh=S.stock.filter(s=>meal(s)&&has(s,FGN.whole)&&!isSoup(s)&&!has(s,VEGX)&&s!==pr), st=S.stock.filter(s=>meal(s)&&(has(s,FGN.starch)||has(s,FGN.whole))&&!isSoup(s)&&!has(s,VEGX)&&s!==pr);
-  let sc=wh.length&&Math.random()<.6?rnd(wh):rnd(st);
+  const scOk=s=>meal(s)&&!isSoup(s)&&!has(s,VEGX)&&s!==pr&&!isMeat(s)&&!(habBread&&isBread(s));
+  const wh=S.stock.filter(s=>scOk(s)&&has(s,FGN.whole)), st=S.stock.filter(s=>scOk(s)&&(has(s,FGN.starch)||has(s,FGN.whole)));
+  // le pain en féculent seulement s'il n'y a ni pâtes, ni riz, ni pommes de terre, ni lentilles…
+  const nb=l=>l.filter(x=>!isBread(x)).length?l.filter(x=>!isBread(x)):l, wh2=nb(wh), st2=nb(st);
+  let sc=wh2.length&&Math.random()<.6&&!(st2.length&&!isBread(st2[0])&&wh2.every(isBread))?rnd(wh2):rnd(st2);
   // mes associations : lentilles ↔ saucisse (de Toulouse)
   const isLent=x=>x&&has(x,/lentille/), isSau=x=>x&&has(x,/saucisse/);
   const lentL=S.stock.filter(s=>meal(s)&&isLent(s)), sauL=S.stock.filter(s=>meal(s)&&isSau(s)), sauT=sauL.filter(s=>has(s,/toulouse/));
   if((isLent(pr)||isLent(sc))&&sauL.length&&Math.random()<.8){ const l=isLent(sc)?sc:pr; pr=rnd(sauT)||rnd(sauL); sc=l; }
   else if(isSau(pr)&&lentL.length&&!isLent(sc)&&Math.random()<.75) sc=rnd(lentL);
   // entrée : crudités ou UN potage
-  const soups=S.stock.filter(s=>meal(s)&&isSoup(s)&&s!==pr), crus=S.stock.filter(s=>meal(s)&&has(s,ENTREE)&&s!==pr);
+  const soups=S.stock.filter(s=>meal(s)&&isSoup(s)&&s!==pr), crus=S.stock.filter(s=>meal(s)&&has(s,ENTREE)&&s!==pr&&!isMeat(s));
   const soupP=slot==='soir'?.65:.1; // la soupe : plutôt le soir
   const ent=Math.random()<.7?(soups.length&&Math.random()<soupP?rnd(soups):rnd(crus)||(slot==='soir'?rnd(soups):null)):null;
   // légume d'accompagnement (purée butternut, haricots, ratatouille…) : pas de 2e soupe, pas la même chose que l'entrée
   const isVeg=s=>has(s,FGN.veg)||has(s,VEGX);
-  let side=rnd(S.stock.filter(s=>meal(s)&&isVeg(s)&&!isSoup(s)&&!has(s,ENTREE)&&s!==pr&&s!==sc));
-  if(!ent&&!side) side=rnd(S.stock.filter(s=>meal(s)&&isVeg(s)&&!isSoup(s)&&s!==pr&&s!==sc));
+  let side=rnd(S.stock.filter(s=>meal(s)&&isVeg(s)&&!isSoup(s)&&!has(s,ENTREE)&&s!==pr&&s!==sc&&!isMeat(s)));
+  if(!ent&&!side) side=rnd(S.stock.filter(s=>meal(s)&&isVeg(s)&&!isSoup(s)&&s!==pr&&s!==sc&&!isMeat(s)));
   else if(ent&&side&&Math.random()<.35) side=null;
   // sauce pour le goût : tomate avec les pâtes de préférence
   const salad=[ent,side].find(x=>x&&has(x,ENTREE)), sSauce=salad?rnd(L(SALAD_SAUCE)):null;
@@ -1880,7 +1887,7 @@ function mealFromStock(slot){
   const hab=endHab(slot)?endHabItems(slot):{out:[],miss:[]};
   const fin=hab.out.length?null:Math.random()<.85?(Math.random()<.4&&chz.length?rnd(chz):rnd(okD)||(Math.random()<.3?rnd(treat):null)||rnd(chz)):null;
   // le fromage se mange avec un peu de pain (complet de préférence), sauf si le pain est déjà le féculent du plat
-  const breads=L(/\bpain|baguette|ficelle/).filter(x=>!isNotMeal(x)), cheeseBread=fin&&has(fin,CHEESE)&&!(sc&&has(sc,/\bpain|baguette/))?(rnd(breads.filter(x=>has(x,FGN.whole)))||rnd(breads)):null;
+  const breads=L(/\bpain|baguette|ficelle/).filter(x=>!isNotMeal(x)&&!has(x,/petits? pains?/)), cheeseBread=fin&&has(fin,CHEESE)&&!(sc&&has(sc,/\bpain|baguette/))?(rnd(breads.filter(x=>has(x,FGN.whole)))||rnd(breads)):null;
   const courses=[['🥗 Entrée',[ent,salad===ent?sSauce:null]],['🍽️ Plat',[pr,sc,side,sauce,salad===side?sSauce:null]],hab.out.length?['🍮 Fin de repas',hab.out]:[fin&&has(fin,CHEESE)?'🧀 Fromage':'🍏 Dessert',[fin,cheeseBread]]]
     .map(([l,a])=>[l,[...new Set(a.filter(Boolean))]]).filter(c=>c[1].length);
   const ids=[...new Set(courses.flatMap(c=>c[1].map(x=>x.id)))];
@@ -2071,7 +2078,7 @@ function recoQty(s){
   else if(/soupe|veloute|potage/.test(t)){ g=300; txt='1 bol (300 mL)'; }
   else if(/pain|baguette/.test(t)){ g=40; txt=/petit/.test(t)?'1 petit pain':'1 tranche (≈ 40 g)'; }
   else if(/pomme de terre|patate|grenaille/.test(t)){ g=150; txt='≈ 150 g'; }
-  else if(/puree/.test(t)&&/legume|epinard|brocoli|courgette|carotte|haricot|potiron/.test(t)){ g=200; txt=/surgel/.test(t)||s.cat==='surgele'?'≈ 200 g (½ assiette) · surgelé : pèse-la ou regarde le poids d\'un galet sur le paquet':'≈ 200 g (½ assiette)'; }
+  else if(/puree/.test(t)&&/legume|epinard|brocoli|courgette|carotte|haricot|potiron/.test(t)){ g=200; txt=/surgel/.test(t)||s.cat==='surgele'?'200 g surgelée = ≈ 170 g une fois cuite (½ assiette)':'≈ 200 g (½ assiette)'; }
   else if(/puree/.test(t)){ g=150; txt='≈ 150 g (¼ assiette)'; }
   else if(/pates|riz|semoule|quinoa|boulgour|lentille|pois chiche|nouille|ble /.test(t)){ g=50; txt='≈ 50 g cru (¼ assiette)'; }
   else if(FGN.prot.test(t)){ g=120; txt='≈ 120 g'; }
