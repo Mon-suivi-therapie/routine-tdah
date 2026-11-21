@@ -182,6 +182,12 @@ label.chip.pick input{width:18px;height:18px;min-height:0;padding:0;margin:0;fle
 .meal.eaten .mtext{text-decoration:line-through;color:var(--mute)}
 .evh{font-size:1rem;margin:16px 0 4px;display:flex;gap:8px;align-items:center}
 .awaycard{border:2px solid #f3c677;background:#fff8ea}
+.bal .chip{font-size:.72rem;padding:1px 7px}
+.baltip{display:block;margin-top:2px}
+.recipe{background:var(--soft);border-radius:14px;padding:10px 14px;margin:4px 0 10px;width:100%}
+.recipe ul,.recipe ol{margin:6px 0 10px;padding-left:22px;line-height:1.5}
+textarea{margin-top:4px;resize:vertical}
+.healthtips p{margin:8px 0;font-size:.92rem;line-height:1.45}
 .freqed{background:var(--soft);border-radius:14px;padding:10px 12px;margin:4px 0 10px}
 button.storechip{cursor:pointer;min-height:28px}
 @media (prefers-color-scheme:dark){ .awaycard{background:#3a2c18} }
@@ -1681,6 +1687,139 @@ function mealIdea(){
   const uses=[m,sd].filter(Boolean);
   return {text:uses.map(s=>shortName(s.text)).join(' + '),uses:uses.map(s=>s.id)};
 }
+/* ---------- Repas équilibrés : perte de poids, SOPK, endométriose, prédiabète ----------
+   Repères généraux (assiette, index glycémique bas, anti-inflammatoire), pas un avis médical. */
+if(!S.health) S.health={on:true};
+let hlOpen=false;
+const FG={
+  veg:/légume|salade|iceberg|tomate|concombre|courgette|carotte|haricots? verts?|brocoli|épinard|poivron|chou|champignon|soupe|potiron|poireau|aubergine|ratatouille|crudité|betterave|radis|endive|asperge|petits? pois|poêlée/i,
+  fruit:/\bpommes?\b(?! de terre)|banane|orange|fruit|kiwi|poire|clémentine|mandarine|fraise|framboise|myrtille|abricot|pêche|raisin|ananas|mangue/i,
+  prot:/œuf|oeuf|poulet|dinde|jambon|poisson|thon|saumon|sardine|maquereau|cabillaud|colin|steak|bœuf|boeuf|burger|lentille|pois chiche|haricots? rouges?|tofu|tempeh|skyr|fromage blanc|cottage|viande|crevette|filet|escalope|feta|mozzarella|fromage/i,
+  starch:/pâtes|nouilles|riz|pain|pommes? de terre|purée(?![^+]*légume)|grenaille|semoule|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|flocons|avoine|patate|tortilla|wrap|galette|blé|céréales|frites|biscotte/i,
+  whole:/complet|avoine|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|seigle|patate douce|sarrasin|épeautre|son\b|petit épeautre|riz brun|vapeur/i,
+  sweet:/liégeois|biscuit|chocolat|gâteau|soda|coca|jus|bonbon|crème dessert|nutella|pâte à tartiner|sucre|céréales|viennoiserie|brioche|croissant|pain au chocolat|confiture|glace|sirop/i,
+  proc:/burger|nuggets|pané|saucisse|chips|pizza|cordon bleu|lardons|chorizo|salami|knacki|frites|plat préparé|cordon/i,
+};
+const mealTxt=sl=>[sl.text||'',...(sl.uses||[]).map(id=>(S.stock.find(s=>s.id===id)||{}).text||'')].join(' ');
+function balanceOf(sl,slot){
+  const t=mealTxt(sl), has=k=>FG[k].test(t), r={veg:has('veg'),fruit:has('fruit'),prot:has('prot'),starch:has('starch'),whole:has('whole'),sweet:has('sweet'),proc:has('proc')};
+  const tips=[];
+  if(!r.prot) tips.push('ajoute une protéine (œufs, poulet, poisson, lentilles, skyr…) : ça cale et stabilise le sucre dans le sang');
+  if(slot==='matin'){ if(!r.veg&&!r.fruit&&!r.whole) tips.push('ajoute des fibres : pain complet ou aux céréales, un fruit entier ou des crudités'); }
+  else if(!r.veg) tips.push('ajoute des légumes (la moitié de l\'assiette) : soupe, salade, crudités, poêlée surgelée…');
+  if(r.starch&&!r.whole) tips.push('version complète si possible (pain complet, riz complet, pâtes al dente, légumineuses)');
+  if(r.sweet) tips.push('le sucré plutôt en fin de repas, jamais seul');
+  if(r.proc) tips.push('produit transformé : OK de temps en temps, avec beaucoup de légumes à côté');
+  const score=(r.prot?1:0)+((slot==='matin'?(r.veg||r.fruit||r.whole):r.veg)?1:0)+((!r.starch||r.whole)?1:0)-(r.sweet||r.proc?1:0);
+  return {r,tips,ok:score>=3};
+}
+function balanceHtml(sl,slot){
+  const b=balanceOf(sl,slot), i=(on,e,l)=>`<span class="chip ${on?'on':''}" title="${l}">${e}${on?'✓':'·'}</span>`;
+  return `<span class="chips bal" style="margin:4px 0 0">${i(b.r.veg||(slot==='matin'&&b.r.fruit),slot==='matin'?'🍎':'🥦',slot==='matin'?'Fruits ou légumes':'Légumes')}${i(b.r.prot,'🍗','Protéines')}${i(!b.r.starch||b.r.whole,'🌾','Féculents complets')}${b.ok?'<span class="chip nowchip">⚖️ équilibré</span>':''}</span>${b.tips.length?`<span class="sub baltip">💡 ${b.tips[0]}</span>`:''}`;
+}
+/* Idées de repas équilibrés, IG bas et anti-inflammatoires, avec la recette (quantités pour 1 personne) :
+   [slot, titre, ingrédients [nom, rayon, quantité, unité, facultatif?], étapes, minutes] */
+const HEALTH_IDEAS=[
+  ['matin','Skyr + fruits rouges + flocons d\'avoine',[['Skyr nature','laitier',150,'g'],['Fruits rouges surgelés','surgele',100,'g'],['Flocons d\'avoine','sucre',30,'g'],['Cannelle','sale',1,'pincée',1]],
+    ['La veille (ou 1 min au micro-ondes) : décongèle les fruits rouges.','Verse le skyr dans un bol.','Ajoute les fruits rouges et leur jus.','Parsème les flocons d\'avoine et une pincée de cannelle.'],5],
+  ['matin','2 œufs + pain complet + tomate',[['Œufs','laitier',2,''],['Pain complet','pain',1,'tranche (40 g)'],['Tomates','fruits',1,''],['Huile d\'olive','sale',1,'c. à café',1]],
+    ['Fais chauffer une poêle avec un filet d\'huile (ou de l\'eau à bouillir pour des œufs à la coque : 6 min).','Casse les 2 œufs, cuis 3-4 min à feu moyen jusqu\'à ce que le blanc soit pris.','Pendant ce temps, grille le pain.','Coupe la tomate en rondelles, sel, poivre.'],10],
+  ['matin','Fromage blanc + pomme + amandes',[['Fromage blanc nature','laitier',150,'g'],['Pommes','fruits',1,''],['Amandes','sucre',15,'g (une petite poignée)']],
+    ['Lave et coupe la pomme en petits dés (garde la peau : plein de fibres).','Mets le fromage blanc dans un bol, ajoute la pomme.','Concasse grossièrement les amandes et parsème.'],5],
+  ['midi','Poulet + haricots verts + quinoa',[['Filets de poulet','viande',120,'g'],['Haricots verts surgelés','surgele',200,'g'],['Quinoa','sale',50,'g (cru)'],['Huile d\'olive','sale',1,'c. à café',1],['Citron','fruits',0.5,'',1]],
+    ['Rince le quinoa, mets-le dans 2 fois son volume d\'eau salée, cuis 12-15 min à couvert.','Cuis les haricots verts 10 min dans l\'eau bouillante (ou 6 min au micro-ondes avec un fond d\'eau).','Coupe le poulet en lanières et fais-le dorer 8-10 min dans la poêle avec l\'huile (plus du tout rose à l\'intérieur).','Sel, poivre, herbes, un filet de citron.','Dans l\'assiette : ½ haricots verts, ¼ poulet, ¼ quinoa.'],25],
+  ['midi','Salade pois chiches, tomates, concombre, feta',[['Pois chiches en conserve','sale',120,'g (égouttés)'],['Tomates','fruits',1,''],['Concombre','fruits',0.5,''],['Feta','laitier',30,'g'],['Huile d\'olive','sale',1,'c. à café',1],['Citron','fruits',0.5,'',1]],
+    ['Égoutte et rince les pois chiches.','Coupe la tomate et le concombre en dés.','Émiette la feta par-dessus.','Assaisonne : huile d\'olive, jus de citron, sel, poivre, herbes (persil, menthe, origan).'],10],
+  ['midi','Saumon + brocolis + riz complet',[['Pavés de saumon','surgele',1,'pavé (120 g)'],['Brocolis surgelés','surgele',200,'g'],['Riz complet','sale',50,'g (cru)'],['Citron','fruits',0.5,'',1]],
+    ['Cuis le riz complet 25-30 min dans l\'eau bouillante salée (ou un sachet de riz complet express : 2 min).','Cuis les brocolis 8-10 min à l\'eau bouillante ou à la vapeur.','Saumon : 4 min côté peau à la poêle puis 3 min de l\'autre côté (ou 15 min au four à 180 °C).','Un filet de citron, sel, poivre.'],30],
+  ['midi','Lentilles + carottes + œuf dur',[['Lentilles','sale',60,'g (crues)'],['Carottes','fruits',2,''],['Œufs','laitier',1,''],['Huile de colza','sale',1,'c. à café',1],['Moutarde','sale',1,'c. à café',1]],
+    ['Rince les lentilles. Coupe les carottes en rondelles.','Cuis lentilles + carottes 20-25 min dans l\'eau non salée (sale à la fin).','Œuf dur : 9 min dans l\'eau bouillante, puis eau froide et écale-le.','Vinaigrette : huile de colza + moutarde + un peu de vinaigre.','Mélange, coupe l\'œuf par-dessus. Aussi bon froid le lendemain.'],30],
+  ['midi','Dinde + ratatouille + boulgour',[['Escalopes de dinde','viande',120,'g'],['Ratatouille','sale',200,'g'],['Boulgour','sale',50,'g (cru)'],['Herbes de Provence','sale',1,'pincée',1]],
+    ['Boulgour : verse-le dans 2 fois son volume d\'eau bouillante salée, couvre, attends 10 min.','Fais chauffer la ratatouille dans une casserole.','Cuis la dinde 3-4 min par face dans une poêle chaude.','Herbes de Provence, sel, poivre.'],20],
+  ['midi','Thon + grande salade + pommes de terre vapeur',[['Thon au naturel','sale',100,'g (une petite boîte)'],['Salade','fruits',2,'grosses poignées'],['Pommes de terre','fruits',150,'g'],['Huile d\'olive','sale',1,'c. à café',1]],
+    ['Cuis les pommes de terre avec la peau 20 min dans l\'eau (ou à la vapeur).','Laisse-les refroidir un peu : refroidies, elles font moins monter le sucre dans le sang.','Lave la salade, égoutte et émiette le thon.','Vinaigrette légère, mélange le tout.'],25],
+  ['soir','Omelette aux légumes + salade + pain complet',[['Œufs','laitier',2,''],['Poêlée de légumes surgelée','surgele',150,'g'],['Salade','fruits',1,'poignée'],['Pain complet','pain',1,'tranche (40 g)'],['Huile d\'olive','sale',1,'c. à café',1]],
+    ['Fais revenir la poêlée de légumes 5-7 min dans la poêle avec l\'huile.','Bats les œufs avec sel et poivre.','Verse les œufs sur les légumes, couvre et cuis 3-4 min à feu doux.','Sers avec la salade et le pain complet.'],15],
+  ['soir','Soupe de légumes + 2 œufs durs + pain complet',[['Soupe de légumes','sale',300,'mL (un bol)'],['Œufs','laitier',2,''],['Pain complet','pain',1,'tranche (40 g)']],
+    ['Plonge les œufs 9 min dans l\'eau bouillante, puis dans l\'eau froide ; écale-les.','Fais chauffer la soupe.','Sers avec les œufs coupés en deux et le pain.'],12],
+  ['soir','Chili sin carne (haricots rouges) + riz complet',[['Haricots rouges','sale',150,'g (égouttés)'],['Tomates concassées','sale',200,'g'],['Riz complet','sale',40,'g (cru)'],['Oignon','fruits',0.5,''],['Cumin et paprika','sale',1,'c. à café',1]],
+    ['Lance le riz complet (25-30 min, ou riz express).','Émince l\'oignon, fais-le revenir 3 min avec un filet d\'huile.','Ajoute les tomates, les haricots rincés, le cumin et le paprika.','Laisse mijoter 15 min. Sel, poivre.','Se garde 3 jours au frigo : fais-en pour 2 ou 3 repas !'],30],
+  ['soir','Sardines + salade + pain de seigle',[['Sardines à l\'huile d\'olive','sale',1,'boîte'],['Salade','fruits',2,'poignées'],['Pain de seigle','pain',1,'tranche (40 g)'],['Citron','fruits',0.5,'',1]],
+    ['Grille le pain de seigle.','Égoutte les sardines, écrase-les à la fourchette avec un filet de citron.','Tartine sur le pain.','Sers avec la salade assaisonnée.'],8],
+  ['soir','Cabillaud + poêlée de légumes + patate douce',[['Cabillaud surgelé','surgele',130,'g (un dos)'],['Poêlée de légumes surgelée','surgele',200,'g'],['Patates douces','fruits',150,'g'],['Huile d\'olive','sale',1,'c. à café',1],['Citron','fruits',0.5,'',1]],
+    ['Coupe la patate douce en cubes, mélange avec l\'huile, 25 min au four à 200 °C (ou 15 min à la vapeur).','Fais cuire la poêlée de légumes 7-8 min.','Cabillaud : 3-4 min par face à la poêle, ou 15 min au four avec le citron.','Sel, poivre, citron.'],30],
+  ['soir','Tofu sauté + légumes + nouilles de sarrasin',[['Tofu','laitier',120,'g'],['Poêlée de légumes surgelée','surgele',200,'g'],['Nouilles de sarrasin','sale',50,'g'],['Sauce soja','sale',1,'c. à soupe',1]],
+    ['Coupe le tofu en cubes et fais-le dorer 5 min à la poêle avec un filet d\'huile.','Ajoute les légumes, 6-7 min.','Cuis les nouilles 5 min dans l\'eau bouillante, égoutte.','Mélange tout avec la sauce soja.'],20],
+];
+const ideaNeed=x=>x[2].filter(i=>!i[4]); // ingrédients principaux (sans huile, épices…)
+/* Mes recettes : S.recipes=[{id,slot,title,ings:'texte',steps:'texte',min,pers}] */
+if(!S.recipes) S.recipes=[];
+let recOpen=null, recPers=1, recNew=false;
+const fracTxt=n=>{ const w=Math.floor(n), f=Math.round((n-w)*100)/100, fr={0.25:'¼',0.5:'½',0.75:'¾'}[f]; return fr?(w?w+' ':'')+fr:numTxt(n); };
+function recipeOf(ref){ // 'h3' = idée n°3 ; 'c:id' = ma recette
+  if(ref[0]==='h'){ const x=HEALTH_IDEAS[+ref.slice(1)]; return x&&{ref,slot:x[0],title:x[1],min:x[4],base:1,ings:x[2].map(([n,c,q,u,o])=>({n,q,u,o})),steps:x[3]}; }
+  const r=S.recipes.find(y=>'c:'+y.id===ref); return r&&{ref,slot:r.slot,title:r.title,min:r.min,base:r.pers||1,lines:String(r.ings||'').split('\n').map(t=>t.trim()).filter(Boolean),steps:String(r.steps||'').split('\n').map(t=>t.trim()).filter(Boolean),custom:r.id};
+}
+const recipeRefFor=text=>{ const t=String(text||'').trim().toLowerCase(); if(!t) return null;
+  const i=HEALTH_IDEAS.findIndex(x=>x[1].toLowerCase()===t); if(i>=0) return 'h'+i;
+  const r=S.recipes.find(y=>y.title.trim().toLowerCase()===t); return r?'c:'+r.id:null; };
+function recipeHtml(ref){
+  const r=recipeOf(ref); if(!r) return '';
+  const k=recPers/r.base, ings=r.ings?r.ings.map(i=>{ const st=inStock(i.n); const um=String(i.u||'').match(/^(.*?)\s*(\(.*\))?$/), unit=um[1], par=um[2]||'';
+    return `<li>${i.q?`<b>${fracTxt(i.q*k)}${unit?' '+esc(unit):''}</b> `:''}${esc(i.n)}${par?' <span class="sub">'+esc(par)+'</span>':''}${i.o?' <span class="sub">(facultatif)</span>':''}${!i.o?(st?' ✅':' <span class="sub">· à acheter</span>'):''}</li>`; }).join(''):r.lines.map(l=>`<li>${esc(l)}</li>`).join('');
+  return `<div class="recipe"><h3 class="evh">📖 ${esc(r.title)}${r.min?` <span class="chip">⏱️ ${r.min} min</span>`:''}</h3>
+    <div class="row" style="justify-content:flex-start;align-items:center;margin:4px 0"><span class="sub">Pour</span><span class="qty"><button class="ghost" data-recp="-1" aria-label="Moins">−</button><b>${recPers}</b><button class="ghost" data-recp="1" aria-label="Plus">+</button></span><span class="sub">personne${recPers>1?'s':''}${r.ings?'':' (quantités de la recette pour '+r.base+')'}</span></div>
+    <b>🧺 Ingrédients</b><ul class="ings">${ings||'<li class="sub">—</li>'}</ul>
+    <b>👩‍🍳 Étapes</b><ol class="steps">${r.steps.map(t=>`<li>${esc(t)}</li>`).join('')||'<li class="sub">—</li>'}</ol>
+    <div class="row" style="justify-content:flex-start">${r.ings?`<button class="ghost" data-hlbuy="${ref.slice(1)}">🛒 Ce qui manque → liste</button>`:''}${r.custom?`<button class="ghost" data-recedit="${r.custom}">✏️ Modifier</button><button class="ghost" data-recdel="${r.custom}">🗑 Supprimer</button>`:''}<button class="ghost" data-recclose="1">Fermer</button></div></div>`;
+}
+function recipeForm(r){ r=r||{slot:'soir',title:'',ings:'',steps:'',min:'',pers:1};
+  return `<form class="promoform" data-recform="${r.id||'new'}" style="margin-top:8px">
+    <input data-k="title" value="${esc(r.title)}" placeholder="Nom du plat (ex : Gratin de courgettes)" autocomplete="off" style="flex:1 1 100%">
+    <label class="sub">Repas <select data-k="slot" style="width:auto">${MEAL_SLOTS.map(([k,l])=>`<option value="${k}" ${k===r.slot?'selected':''}>${l}</option>`).join('')}</select></label>
+    <label class="sub">Pour <input data-k="pers" type="number" min="1" max="12" value="${r.pers||1}" style="width:60px"> pers.</label>
+    <label class="sub">⏱️ <input data-k="min" type="number" min="0" value="${r.min||''}" placeholder="min" style="width:70px"> min</label>
+    <label class="sub" style="width:100%">🧺 Ingrédients et quantités (un par ligne)<textarea data-k="ings" rows="5" placeholder="200 g de courgettes&#10;2 œufs&#10;30 g d'emmental">${esc(r.ings)}</textarea></label>
+    <label class="sub" style="width:100%">👩‍🍳 Étapes (une par ligne)<textarea data-k="steps" rows="5" placeholder="Laver et couper les courgettes&#10;Battre les œufs…">${esc(r.steps)}</textarea></label>
+    <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button><button type="button" class="ghost" data-recclose="1">Annuler</button></span></form>`;
+}
+const inStock=name=>{ const w=shortName(name).toLowerCase().split(/\s+/)[0].replace(/s$/,''); return S.stock.find(s=>s.n>0&&s.text.toLowerCase().includes(w)); };
+function healthIdea(slot){
+  // 1) avec le stock : protéine + légume + féculent (complet de préférence)
+  const ok=s=>availOf(s)>0, pick=re=>{ const l=S.stock.filter(s=>ok(s)&&re.test(s.text)); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
+  const pr=pick(FG.prot), vg=slot==='matin'?(pick(FG.fruit)||pick(FG.veg)):pick(FG.veg), st=pick(FG.whole)||pick(FG.starch);
+  if(pr&&vg){ const u=[...new Set([pr,vg,st].filter(Boolean))]; return {text:u.map(s=>shortName(s.text)).join(' + '),uses:u.map(s=>s.id)}; }
+  // 2) sinon : une idée de la liste, en priorité celle dont j'ai le plus d'ingrédients
+  const ideas=HEALTH_IDEAS.filter(x=>x[0]===slot).map(x=>({x,have:ideaNeed(x).filter(([n])=>inStock(n)).length})).sort((a,b)=>b.have-a.have||Math.random()-.5);
+  const best=ideas.filter(i=>i.have===ideas[0].have), c=best[Math.floor(Math.random()*best.length)].x;
+  const uses=ideaNeed(c).map(([n])=>inStock(n)).filter(Boolean).map(s=>s.id);
+  return {text:c[1],uses:[...new Set(uses)]};
+}
+function weekBalance(W){ let ok=0,n=0; Object.entries(W).forEach(([k,sl])=>{ if(!(sl.text||(sl.uses||[]).length)) return; n++; if(balanceOf(sl,k.split('-')[1]).ok) ok++; }); return {ok,n}; }
+function healthHtml(W){
+  const H=S.health;
+  if(!H.on) return `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin:0"><b>⚖️ Repas équilibrés</b><button class="ghost" data-hlon="1">▶️ Activer</button></div></div>`;
+  const wb=weekBalance(W);
+  return `<div class="card routine" style="--acc:var(--c3)"><h2>⚖️ Repas équilibrés <span class="chip">SOPK · endométriose · prédiabète</span></h2>
+    <p class="sub">${wb.n?`Cette semaine : <b>${wb.ok} repas équilibré${wb.ok>1?'s':''} sur ${wb.n}</b> prévus. Pas besoin d'être parfaite : un repas un peu mieux, c'est déjà gagné. 💪`:'Prévois tes repas ci-dessous : je te dis s\'ils sont équilibrés (🥦 légumes, 🍗 protéines, 🌾 féculents complets) et 💡 te propose des idées adaptées.'}</p>
+    <details ${hlOpen?'open':''} data-hldet="1"><summary class="sub" style="cursor:pointer;font-weight:700">📖 Mes repères (touche pour ouvrir)</summary>
+    <div class="healthtips">
+      <p><b>🍽️ L'assiette :</b> ½ légumes · ¼ protéines · ¼ féculents complets, + un peu de bonne matière grasse (huile d'olive ou de colza).</p>
+      <p><b>🩸 Sucre dans le sang (prédiabète, SOPK) :</b> une protéine à chaque repas, petit-déj compris ; féculents complets ou légumineuses ; pâtes al dente. Mange dans l'ordre légumes → protéines → féculents. Évite boissons sucrées et jus. Le sucré en fin de repas, jamais seul. 10 min de marche après le repas aident beaucoup.</p>
+      <p><b>🌿 Anti-inflammatoire (endométriose) :</b> poissons gras 2 fois par semaine (sardines, maquereau, saumon), noix, colza, légumes et fruits colorés. Limiter charcuterie, viande rouge, produits ultra-transformés et alcool.</p>
+      <p><b>⚖️ Perte de poids en douceur :</b> pas de régime strict (ça finit souvent en craquage, surtout avec le TDAH). Des repas réguliers, l'assiette ci-dessus, de l'eau. Faim entre les repas : un fruit + une poignée d'amandes, ou un yaourt nature.</p>
+      <p class="sub">⚠️ Ce sont des repères généraux, pas un avis médical. Pour un plan fait pour toi (traitement, analyses, allergies), parles-en à ton médecin ou à un·e diététicien·ne.</p>
+    </div>
+    <h3 class="evh">💡 Idées de repas</h3>
+    <p class="sub">Touche 📖 pour voir la recette : quantités (pour 1 personne, à ajuster) et étapes.</p>
+    ${HEALTH_IDEAS.map((x,i)=>{ const miss=ideaNeed(x).filter(([n])=>!inStock(n)), ref='h'+i; return `<div class="step"><span class="t" style="flex:1">${x[0]==='matin'?'🥐':x[0]==='midi'?'☀️':'🌙'} ${esc(x[1])} <span class="sub">· ${x[4]} min</span>${miss.length?`<br><span class="sub">Il te manque : ${miss.map(m=>esc(m[0])).join(', ')}</span>`:'<br><span class="sub">✅ Tu as tout dans ton stock</span>'}</span><button class="ghost ${recOpen===ref?'on':''}" data-recopen="${ref}" title="Voir la recette">📖</button>${miss.length?`<button class="ghost" data-hlbuy="${i}" title="Ajouter ce qui manque à ma liste de courses">🛒</button>`:''}</div>${recOpen===ref?recipeHtml(ref):''}`; }).join('')}
+    <h3 class="evh">📒 Mes recettes <span class="chip">${S.recipes.length}</span></h3>
+    ${S.recipes.map(r=>{ const ref='c:'+r.id; return `<div class="step"><span class="t" style="flex:1">${r.slot==='matin'?'🥐':r.slot==='midi'?'☀️':'🌙'} ${esc(r.title)}${r.min?` <span class="sub">· ${r.min} min</span>`:''}</span><button class="ghost" data-recopen="${ref}" title="Voir la recette">📖</button></div>${recOpen===ref?(recNew===r.id?recipeForm(r):recipeHtml(ref)):''}`; }).join('')||'<p class="sub">Ajoute tes plats à toi : ingrédients, quantités et étapes.</p>'}
+    ${recNew===true?recipeForm():'<div class="row" style="justify-content:flex-start"><button data-recnew="1">➕ Ajouter une recette</button></div>'}
+    </details>
+    <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="ghost" data-hlon="1">⏸️ Masquer</button></div></div>`;
+}
+$('#tab-shop').addEventListener('toggle',e=>{ if(e.target.dataset&&e.target.dataset.hldet) hlOpen=e.target.open; },true);
 function mealsHtml(){
   const wk=S.shop.week||(S.shop.week=mondayOf(new Date())), W=S.meals[wk]||{}, today=todayKey();
   const days=[...Array(7)].map((_,i)=>{ const iso=addDays(wk,i), d=new Date(iso+'T12:00:00');
@@ -1689,13 +1828,14 @@ function mealsHtml(){
         const used=(sl.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean), same=used.map(s=>shortName(s.text)).join(' + ')===sl.text;
         const chips=same?'':used.map(s=>`<span class="chip">🥫 ${useQ(sl,s.id)>1?useQ(sl,s.id)+' × ':''}${esc(shortName(s.text))}</span>`).join(' ');
         return `<div class="meal ${sl.eaten?'eaten':''}"><span class="mlabel">${l}</span>
-          <span class="mtext">${has?`${esc(sl.text||'')}${chips?`<span class="chips" style="margin:4px 0 0">${chips}</span>`:''}`:'<span class="sub">—</span>'}</span>
+          <span class="mtext">${has?`${esc(sl.text||'')}${chips?`<span class="chips" style="margin:4px 0 0">${chips}</span>`:''}${S.health.on?balanceHtml(sl,k):''}`:'<span class="sub">—</span>'}</span>
           <span class="mbtn">${has?`<button class="ghost" data-meaten="${key}" title="${sl.eaten?'Pas encore mangé':'Mangé : retire du stock'}">${sl.eaten?'↺':'✓'}</button>`:`<button class="ghost" data-midea="${key}" title="Une idée avec mon stock">💡</button>`}
+          ${(()=>{ const rf=has&&recipeRefFor(sl.text); return rf?`<button class="ghost" data-recopen="${rf}|${wk}|${key}" title="Voir la recette">📖</button>`:''; })()}
           <button class="ghost" data-medit="${key}" aria-label="Modifier ce repas">✏️</button></span>
-          ${open?mealForm(key,sl,k==='matin'&&!!W[key]&&S.breakfast.on):''}</div>`; }).join('')}</div>`; }).join('');
+          ${open?mealForm(key,sl,k==='matin'&&!!W[key]&&S.breakfast.on):''}${recOpen&&recOpen.endsWith('|'+wk+'|'+key)?recipeHtml(recOpen.split('|')[0]):''}</div>`; }).join('')}</div>`; }).join('');
   return `<div class="card"><div class="row monthnav" style="margin:0"><button class="ghost" data-mwk="-7" aria-label="Semaine précédente">◀</button><b>🍽️ Semaine du ${new Date(wk+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}</b><button class="ghost" data-mwk="7" aria-label="Semaine suivante">▶</button></div>
     <p class="sub">Prévois tes repas avec ce que tu as déjà. 💡 propose une idée avec ton stock, ✓ quand c'est mangé (ça retire du stock).</p></div>
-    ${breakfastHtml()}${days}${stockHtml()}`;
+    ${healthHtml(W)}${breakfastHtml()}${days}${stockHtml()}`;
 }
 function breakfastHtml(){
   bfLink(); const B=S.breakfast;
@@ -1715,7 +1855,8 @@ function breakfastHtml(){
 function mealForm(key,sl,own){
   const opts=S.stock.filter(s=>s.n>0||(sl.uses||[]).includes(s.id));
   return `<form class="promoform" data-meal="${key}">
-    <input data-k="text" value="${esc(sl.text||'')}" placeholder="Ex : pâtes bolo, resto, chez maman…" autocomplete="off" style="flex:1 1 100%">
+    <input data-k="text" value="${esc(sl.text||'')}" placeholder="Ex : pâtes bolo, resto, chez maman…" autocomplete="off" list="recList" style="flex:1 1 100%">
+    <datalist id="recList">${[...S.recipes.map(r=>r.title),...HEALTH_IDEAS.map(x=>x[1])].map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
     ${opts.length?`<span class="sub" style="width:100%">Ce que j'utilise de mon stock :</span><span class="chips" style="width:100%">${opts.map(s=>`<label class="chip pick"><input type="checkbox" value="${s.id}" ${(sl.uses||[]).includes(s.id)?'checked':''}> ${esc(shortName(s.text))} <span class="sub">(${unitTxt(s.u,availOf(s))} dispo)</span></label>`).join('')}</span>`:''}
     <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button>
       <button type="button" class="ghost" data-mclear="${key}">${own?'↺ Remettre l\'habituel':'Vider'}</button><button type="button" class="ghost" data-mclose="1">Annuler</button></span></form>`;
@@ -1803,13 +1944,24 @@ $('#tab-shop').addEventListener('click',e=>{
   const W=()=>S.meals[S.shop.week]||(S.meals[S.shop.week]={});
   if(d.medit){ const k=S.shop.week+'|'+d.medit; mealOpen=mealOpen===k?null:k; renderShop(); return; }
   if(d.mclose){ mealOpen=null; renderShop(); return; }
+  if(d.recopen){ recOpen=recOpen===d.recopen?null:d.recopen; recNew=false; recPers=recOpen?(recipeOf(recOpen.split('|')[0])||{}).base||1:1; renderShop(); return; }
+  if(d.recclose){ recOpen=null; recNew=false; renderShop(); return; }
+  if(d.recp){ recPers=Math.min(12,Math.max(1,recPers+(+d.recp))); renderShop(); return; }
+  if(d.recnew){ hlOpen=true; recNew=true; recOpen=null; renderShop(); return; }
+  if(d.recedit){ hlOpen=true; recNew=d.recedit; recOpen='c:'+d.recedit; renderShop(); return; }
+  if(d.recdel){ const r=S.recipes.find(y=>y.id===d.recdel); if(!r||!confirm(`Supprimer la recette « ${r.title} » ?`)) return; S.recipes=S.recipes.filter(y=>y!==r); recOpen=null; save(); renderShop(); return; }
+  if(d.hlon){ S.health.on=!S.health.on; save(); renderShop(); return; }
+  if(d.hlbuy){ const x=HEALTH_IDEAS[+d.hlbuy], miss=ideaNeed(x).filter(([n])=>!inStock(n)).filter(([n])=>!S.shop.items.some(i=>i.m===S.shop.cur&&!i.done&&i.text===n));
+    miss.forEach(([n,c])=>S.shop.items.push({id:uid(),cat:c,text:n,qty:1,price:0,done:false,m:S.shop.cur,store:SHOP_DEF_STORE}));
+    save(); pop('🛒'); alert(miss.length?`Ajouté à ta liste de ${monthLabel(S.shop.cur).toLowerCase()} : ${miss.map(m=>m[0]).join(', ')}.
+Pense à mettre le prix avec ✏️.`:'Tout est déjà dans ta liste. 🙂'); return; }
   if(d.bfedit){ bfOpen=true; renderShop(); return; }
   if(d.bfclose){ bfOpen=false; renderShop(); return; }
   if(d.bfon){ S.breakfast.on=!S.breakfast.on; save(); renderShop(); return; }
   if(d.mclear){ const w=W(), k=d.mclear; // petit-déj habituel : « Vider » = pas de petit-déj ce jour-là ; sinon on revient à l'habituel
     if(/-matin$/.test(k)&&S.breakfast.on&&!w[k]) w[k]={text:'',uses:[],q:{},eaten:false}; else delete w[k];
     mealOpen=null; save(); renderShop(); return; }
-  if(d.midea){ const idea=mealIdea(); if(!idea) return alert('Ton stock est vide (ou tout est déjà prévu). Coche tes courses puis « Retirer les articles pris », ou ajoute ce que tu as dans « Mon stock ».');
+  if(d.midea){ const idea=S.health.on?healthIdea(d.midea.split('-')[1]):mealIdea(); if(!idea) return alert('Ton stock est vide (ou tout est déjà prévu). Coche tes courses puis « Retirer les articles pris », ou ajoute ce que tu as dans « Mon stock ».');
     W()[d.midea]=idea; save(); renderShop(); return; }
   if(d.meaten){ let sl=W()[d.meaten]; if(!sl&&/-matin$/.test(d.meaten)&&S.breakfast.on) sl=W()[d.meaten]=bfSlot(); if(!sl) return; sl.eaten=!sl.eaten;
     (sl.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s&&perMeal(s)) s.n=Math.max(0,s.n+(sl.eaten?-1:1)*useQ(sl,id)); });
@@ -1855,6 +2007,10 @@ $('#tab-shop').addEventListener('submit',e=>{
     const base=old||(/-matin$/.test(d.meal)&&S.breakfast.on?bfSlot():{}), q={}; uses.forEach(id=>{ if(base.q&&base.q[id]) q[id]=base.q[id]; });
     if(!text&&!uses.length) delete W[d.meal]; else W[d.meal]={text:text||uses.map(id=>shortName((S.stock.find(s=>s.id===id)||{}).text||'')).join(' + '),uses,q,eaten:false};
     mealOpen=null; save(); renderShop(); return; }
+  if(d.recform){ e.preventDefault(); const title=v('title'); if(!title) return alert('Donne un nom au plat.');
+    const data={title,slot:v('slot')||'soir',pers:Math.max(1,parseInt(v('pers'),10)||1),min:parseInt(v('min'),10)||0,ings:f.querySelector('[data-k=ings]').value.trim(),steps:f.querySelector('[data-k=steps]').value.trim()};
+    let r=S.recipes.find(y=>y.id===d.recform); if(r) Object.assign(r,data); else { r={id:uid(),...data}; S.recipes.push(r); }
+    recNew=false; recOpen='c:'+r.id; recPers=r.pers; hlOpen=true; save(); renderShop(); return; }
   if(d.bfform){ e.preventDefault(); const B=S.breakfast; B.text=v('text'); B.uses=[]; B.q={}; B.linked=true;
     f.querySelectorAll('[data-bq]').forEach(i=>{ const n=Math.round(+i.value); if(n>0){ B.uses.push(i.dataset.bq); B.q[i.dataset.bq]=n; } });
     bfOpen=false; save(); renderShop(); return; }
