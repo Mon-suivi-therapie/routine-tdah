@@ -1718,7 +1718,7 @@ const FG={
   veg:/légume|salade|iceberg|tomate|concombre|courgette|carotte|haricots? verts?|brocoli|épinard|poivron|chou|champignon|soupe|potiron|poireau|aubergine|ratatouille|crudité|betterave|radis|endive|asperge|petits? pois|poêlée/i,
   fruit:/\bpommes?\b(?! de terre)|banane|orange|fruit|kiwi|poire|clémentine|mandarine|fraise|framboise|myrtille|abricot|pêche|raisin|ananas|mangue/i,
   prot:/œuf|oeuf|poulet|cordon|nuggets|pané|saucisse|knacki|chipolata|merguez|lardon|dinde|jambon|poisson|thon|saumon|sardine|maquereau|cabillaud|colin|steak|bœuf|boeuf|burger|lentille|pois chiche|haricots? rouges?|tofu|tempeh|skyr|fromage blanc|cottage|viande|crevette|filet|escalope|feta|mozzarella|fromage/i,
-  starch:/pâtes|nouilles|riz|pain|pommes? de terre|purée|grenaille|semoule|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|flocons|avoine|patate|tortilla|wrap|galette|blé|céréales|frites|biscotte/i,
+  starch:/pâtes|nouilles|riz|pain|crêpe|crepe|quiche|pizza|lasagne|croque|feuilleté|tarte salée|pommes? de terre|purée|grenaille|semoule|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|flocons|avoine|patate|tortilla|wrap|galette|blé|céréales|frites|biscotte/i,
   whole:/complet|avoine|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|seigle|patate douce|sarrasin|épeautre|son\b|petit épeautre|riz brun|vapeur/i,
   sweet:/liégeois|biscuit|chocolat|gâteau|soda|coca|jus|bonbon|crème dessert|nutella|pâte à tartiner|sucre|céréales|viennoiserie|brioche|croissant|pain au chocolat|confiture|glace|sirop/i,
   proc:/burger|nuggets|pané|saucisse|chips|pizza|cordon bleu|lardons|chorizo|salami|knacki|frites|plat préparé|cordon/i,
@@ -1837,7 +1837,9 @@ const END_DEF={midi:'liégeois',soir:'fromage, pain de mie complet, compote'};
 const endHab=slot=>{ if(!S.endHabit) S.endHabit={...END_DEF}; return String(S.endHabit[slot]||'').trim(); };
 function endHabItems(slot){
   const raw=endHab(slot).split(/[,+\n]| et /).map(w=>w.trim()).filter(Boolean), ws=raw.map(w=>noAcc(w)), free=s=>availOf(s)>0, out=[], miss=[];
-  ws.forEach((w,k)=>{ const L=S.stock.filter(free), parts=w.split(/\s+/);
+  // un plat complet (crêpe jambon fromage, quiche…) n'est pas « le fromage » ou « le pain » de fin de repas
+  const dish=s=>FGN.prot.test(NT(s))&&FGN.starch.test(NT(s))&&!/^(fromage|pain)/.test(NT(s).trim());
+  ws.forEach((w,k)=>{ const L=S.stock.filter(s=>free(s)&&(!dish(s)||NT(s).trim()===w)), parts=w.split(/\s+/);
     const syn=/^fromages?$/.test(w)?CHEESE:/^fruits?$/.test(w)?DESSERT_OK:/^pains?$/.test(w)?/\bpain|baguette/:null;
     const x=L.find(s=>NT(s).includes(w))||(syn&&L.find(s=>syn.test(NT(s))))||L.find(s=>parts.every(p=>NT(s).includes(p)))||L.find(s=>NT(s).includes(parts[0].replace(/s$/,'')));
     if(x&&!out.includes(x)) out.push(x); else if(!x) miss.push(raw[k]); });
@@ -1853,7 +1855,8 @@ function mealFromStock(slot){
   // une seule viande / un seul poisson par plat (les lentilles et pois chiches peuvent accompagner)
   const isMeat=x=>has(x,FGN.prot)&&!has(x,/lentille|pois chiche|haricots? rouges?/)&&!isSoup(x);
   // plat
-  let pr=rnd(S.stock.filter(s=>meal(s)&&has(s,FGN.prot)&&!has(s,CHEESE)&&!isSoup(s)&&!has(s,DESSERT_OK)));
+  const isDish=x=>has(x,FGN.prot)&&has(x,FGN.starch)&&has(x,/jambon|poulet|dinde|thon|saumon|lardon|viande|boeuf|crepe|galette|quiche|pizza|lasagne|croque/);
+  let pr=rnd(S.stock.filter(s=>meal(s)&&has(s,FGN.prot)&&(!has(s,CHEESE)||isDish(s))&&!isSoup(s)&&!has(s,DESSERT_OK)));
   const scOk=s=>meal(s)&&!isSoup(s)&&!has(s,VEGX)&&s!==pr&&!isMeat(s)&&!(habBread&&isBread(s));
   const wh=S.stock.filter(s=>scOk(s)&&has(s,FGN.whole)), st=S.stock.filter(s=>scOk(s)&&(has(s,FGN.starch)||has(s,FGN.whole)));
   // le pain en féculent seulement s'il n'y a ni pâtes, ni riz, ni pommes de terre, ni lentilles…
@@ -1864,6 +1867,8 @@ function mealFromStock(slot){
   const lentL=S.stock.filter(s=>meal(s)&&isLent(s)), sauL=S.stock.filter(s=>meal(s)&&isSau(s)), sauT=sauL.filter(s=>has(s,/toulouse/));
   if((isLent(pr)||isLent(sc))&&sauL.length&&Math.random()<.8){ const l=isLent(sc)?sc:pr; pr=rnd(sauT)||rnd(sauL); sc=l; }
   else if(isSau(pr)&&lentL.length&&!isLent(sc)&&Math.random()<.75) sc=rnd(lentL);
+  // plat déjà complet (crêpe jambon fromage, quiche, pizza…) : il contient son féculent, pas besoin d'en rajouter
+  if(pr&&has(pr,FGN.starch)&&!isLent(pr)&&!has(pr,/pois chiche|haricots? rouges?/)) sc=null;
   // entrée : crudités ou UN potage
   const soups=S.stock.filter(s=>meal(s)&&isSoup(s)&&s!==pr), crus=S.stock.filter(s=>meal(s)&&has(s,ENTREE)&&s!==pr&&!isMeat(s));
   const soupP=slot==='soir'?.65:.1; // la soupe : plutôt le soir
@@ -1883,7 +1888,7 @@ function mealFromStock(slot){
   const okS=sauces.filter(fits), pref=fish?okS.filter(x=>has(x,FISH_SAUCE)||has(x,/beurre/)):pasta?okS.filter(x=>has(x,PASTA_SAUCE)||has(x,/beurre/)):okS;
   const sauce=okS.length&&Math.random()<(pasta?.55:.35)?(rnd(pref)||rnd(okS)):null;
   // fin de repas : fromage OU dessert léger (les desserts sucrés seulement s'il n'y a rien d'autre, et pas tous les jours)
-  const okD=L(DESSERT_OK).filter(x=>x!==pr), treat=L(DESSERT_TREAT), chz=L(CHEESE).filter(x=>x!==pr);
+  const okD=L(DESSERT_OK).filter(x=>x!==pr), treat=L(DESSERT_TREAT), chz=L(CHEESE).filter(x=>x!==pr&&!isDish(x));
   const hab=endHab(slot)?endHabItems(slot):{out:[],miss:[]};
   const fin=hab.out.length?null:Math.random()<.85?(Math.random()<.4&&chz.length?rnd(chz):rnd(okD)||(Math.random()<.3?rnd(treat):null)||rnd(chz)):null;
   // le fromage se mange avec un peu de pain (complet de préférence), sauf si le pain est déjà le féculent du plat
@@ -2062,7 +2067,9 @@ function defPkg(t,u){
 }
 function recoQty(s){
   const t=noAcc(s.text), u=s.u; let g=0, cnt=1, txt='';
-  if(/oeuf|œuf/.test(t)){ cnt=2; txt='2 œufs'; }
+  if(/crepe|galette|croque/.test(t)&&/jambon|fromage|poulet|oeuf|dinde|thon|saumon|champignon/.test(t)){ cnt=1; g=120; txt=/crepe/.test(t)?'1 crêpe':/croque/.test(t)?'1 croque':'1 galette'; }
+  else if(/quiche|pizza|lasagne|tarte salee|feuillete/.test(t)){ cnt=1; g=150; txt='1 part (≈ 150 g)'; }
+  else if(/oeuf|œuf/.test(t)){ cnt=2; txt='2 œufs'; }
   else if(/nugget/.test(t)){ cnt=5; g=100; txt='5 nuggets (≈ 100 g)'; }
   else if(/saucisse|knacki|chipolata|merguez/.test(t)){ cnt=2; g=100; txt='2 saucisses'; }
   else if(/burger|steak|cordon|filet|escalope|pave|cuisse|poisson pane/.test(t)){ cnt=1; g=120; txt='1 pièce (≈ 120 g)'; }
