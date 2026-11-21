@@ -188,6 +188,8 @@ label.chip.pick input{width:18px;height:18px;min-height:0;padding:0;margin:0;fle
 .ideapick{width:100%;display:flex;flex-direction:column;gap:6px;background:var(--soft);border-radius:14px;padding:10px;margin-top:6px}
 .ideaopt{display:flex;align-items:center;gap:10px;width:100%;border:2px solid var(--line);border-radius:14px;padding:8px 10px;background:var(--card);color:var(--ink);font-weight:400}
 .ideaopt:hover{border-color:var(--pink-deep)}
+.endhab{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px}
+.endhab input{flex:1;min-width:160px}
 .ideacourse{display:block;line-height:1.35;margin:1px 0}
 .ideanum{flex:none;width:26px;height:26px;border-radius:50%;background:var(--pink-deep);color:#fff;display:grid;place-items:center;font-weight:800}
 .stsearch{position:relative;margin:6px 0 4px}
@@ -1827,10 +1829,22 @@ const SALAD_SAUCE=/crudite|vinaigrette/;
 const CHEESE=/fromage(?! blanc)|emmental|comte|camembert|chevre|brie|vache qui rit|kiri|babybel|raclette|mozza|feta|roquefort|tomme/;
 const DESSERT_OK=/compote|yaourt|yogourt|fromage blanc|skyr|petit suisse|pomme|poire|banane|orange|clementine|mandarine|kiwi|fraise|framboise|myrtille|raisin|ananas|mangue|peche|abricot|prune|fruit/;
 const DESSERT_TREAT=/liegeois|creme dessert|danette|mousse|flan|gateau|cookie|biscuit|chocolat|glace|tarte|patisserie/;
+/* Fin de repas habituelle (mon petit plaisir du midi, fromage + pain + compote le soir…) */
+const END_DEF={midi:'liégeois',soir:'fromage, pain de mie complet, compote'};
+const endHab=slot=>{ if(!S.endHabit) S.endHabit={...END_DEF}; return String(S.endHabit[slot]||'').trim(); };
+function endHabItems(slot){
+  const raw=endHab(slot).split(/[,+\n]| et /).map(w=>w.trim()).filter(Boolean), ws=raw.map(w=>noAcc(w)), free=s=>availOf(s)>0, out=[], miss=[];
+  ws.forEach((w,k)=>{ const L=S.stock.filter(free), parts=w.split(/\s+/);
+    const syn=/^fromages?$/.test(w)?CHEESE:/^fruits?$/.test(w)?DESSERT_OK:/^pains?$/.test(w)?/\bpain|baguette/:null;
+    const x=L.find(s=>NT(s).includes(w))||(syn&&L.find(s=>syn.test(NT(s))))||L.find(s=>parts.every(p=>NT(s).includes(p)))||L.find(s=>NT(s).includes(parts[0].replace(/s$/,'')));
+    if(x&&!out.includes(x)) out.push(x); else if(!x) miss.push(raw[k]); });
+  return {out,miss};
+}
 function mealFromStock(slot){
   const free=s=>availOf(s)>0, rnd=l=>l.length?l[Math.floor(Math.random()*l.length)]:null, has=(s,re)=>re.test(NT(s));
   const L=re=>S.stock.filter(s=>free(s)&&has(s,re));
-  const meal=s=>free(s)&&!isNotMeal(s)&&!has(s,SAUCE);
+  const habIds=endHab(slot)?endHabItems(slot).out.map(x=>x.id):[];
+  const meal=s=>free(s)&&!isNotMeal(s)&&!has(s,SAUCE)&&!habIds.includes(s.id);
   // plat
   const pr=rnd(S.stock.filter(s=>meal(s)&&has(s,FGN.prot)&&!has(s,CHEESE)&&!isSoup(s)&&!has(s,DESSERT_OK)));
   const wh=S.stock.filter(s=>meal(s)&&has(s,FGN.whole)&&!isSoup(s)&&!has(s,VEGX)&&s!==pr), st=S.stock.filter(s=>meal(s)&&(has(s,FGN.starch)||has(s,FGN.whole))&&!isSoup(s)&&!has(s,VEGX)&&s!==pr);
@@ -1848,10 +1862,11 @@ function mealFromStock(slot){
   const sauce=sauces.length&&(pasta||Math.random()<.4)?(pasta&&rnd(sauces.filter(x=>has(x,/tomate|bolognaise|carbonara|creme/)))||rnd(sauces)):null;
   // fin de repas : fromage OU dessert léger (les desserts sucrés seulement s'il n'y a rien d'autre, et pas tous les jours)
   const okD=L(DESSERT_OK).filter(x=>x!==pr), treat=L(DESSERT_TREAT), chz=L(CHEESE).filter(x=>x!==pr);
-  const fin=Math.random()<.85?(Math.random()<.4&&chz.length?rnd(chz):rnd(okD)||(Math.random()<.3?rnd(treat):null)||rnd(chz)):null;
+  const hab=endHab(slot)?endHabItems(slot):{out:[],miss:[]};
+  const fin=hab.out.length?null:Math.random()<.85?(Math.random()<.4&&chz.length?rnd(chz):rnd(okD)||(Math.random()<.3?rnd(treat):null)||rnd(chz)):null;
   // le fromage se mange avec un peu de pain (complet de préférence), sauf si le pain est déjà le féculent du plat
   const breads=L(/\bpain|baguette|ficelle/).filter(x=>!isNotMeal(x)), cheeseBread=fin&&has(fin,CHEESE)&&!(sc&&has(sc,/\bpain|baguette/))?(rnd(breads.filter(x=>has(x,FGN.whole)))||rnd(breads)):null;
-  const courses=[['🥗 Entrée',[ent,salad===ent?sSauce:null]],['🍽️ Plat',[pr,sc,side,sauce,salad===side?sSauce:null]],[fin&&has(fin,CHEESE)?'🧀 Fromage':'🍏 Dessert',[fin,cheeseBread]]]
+  const courses=[['🥗 Entrée',[ent,salad===ent?sSauce:null]],['🍽️ Plat',[pr,sc,side,sauce,salad===side?sSauce:null]],hab.out.length?['🍮 Fin de repas',hab.out]:[fin&&has(fin,CHEESE)?'🧀 Fromage':'🍏 Dessert',[fin,cheeseBread]]]
     .map(([l,a])=>[l,[...new Set(a.filter(Boolean))]]).filter(c=>c[1].length);
   const ids=[...new Set(courses.flatMap(c=>c[1].map(x=>x.id)))];
   if(!pr&&!sc&&!side&&!ent) return null;
@@ -1862,7 +1877,7 @@ function mealFromStock(slot){
     q[x.id]=n; }));
   const word=x=>shortName(x.text);
   return {text:courses.map(([l,a])=>`${l.split(' ')[1]} : ${a.map(word).join(' + ')}`).join(' · '),uses:ids,q,stockOnly:true,
-    courses:courses.map(([l,a])=>[l,a.map(x=>x.id)]),small};
+    courses:courses.map(([l,a])=>[l,a.map(x=>x.id)]),small,habMiss:hab.miss};
 }
 const lunchFromStock=()=>mealFromStock('midi');
 function healthIdea(slot){
@@ -1895,6 +1910,8 @@ function ideaPickHtml(slot){
         :`<b>${esc(used.length?used.map(s=>shortName(s.text)).join(' + '):x.text)}</b>${used.length?`<br><span class="sub">${used.map(s=>`${esc(shortName(s.text))} : ${esc(qt(s))}`).join(' · ')}</span>`:''}`;
       return `<button type="button" class="ideaopt" data-ipick="${i}"><span class="ideanum">${i+1}</span><span style="flex:1;min-width:0;text-align:left">${body}${S.health.on&&balanceOf(x,slot).ok?' <span class="sub">· ⚖️ équilibré</span>':''}</span></button>`; }).join('')}
     ${L.length<2?'<p class="sub">Je n\'ai pas trouvé d\'autre idée avec ton stock.</p>':''}
+    ${slot==='midi'||slot==='soir'?`<label class="sub endhab">🍮 Ma fin de repas habituelle ${slot==='midi'?'le midi':'le soir'} : <input data-endhab="${slot}" value="${esc(endHab(slot))}" placeholder="vide = je choisis pour toi" autocomplete="off"></label>
+      ${(L[0]&&L[0].habMiss||[]).length?`<span class="sub">⚠️ Plus dans ton stock : <b>${esc(L[0].habMiss.join(', '))}</b>. <button type="button" class="ghost" data-endbuy="${slot}">🛒 Ajouter à ma liste</button></span>`:''}`:''}
     <div class="row" style="justify-content:flex-start;margin:4px 0 0"><button type="button" class="ghost" data-imore="1">🔄 Autres idées</button><button type="button" class="ghost" data-iclose="1">Annuler</button></div></div>`;
 }
 function weekBalance(W){ let ok=0,n=0; Object.entries(W).forEach(([k,sl])=>{ if(!(sl.text||(sl.uses||[]).length)) return; n++; if(balanceOf(sl,k.split('-')[1]).ok) ok++; }); return {ok,n}; }
@@ -2064,6 +2081,9 @@ function stockFilter(){
   const none=box.querySelector('[data-stnone]'); if(none){ none.hidden=!(q&&!n); none.querySelector('b').textContent=stQuery.trim(); }
   const clr=box.querySelector('[data-stclear]'); if(clr) clr.hidden=!q;
 }
+document.addEventListener('change',e=>{ const t=e.target; if(!(t.dataset&&t.dataset.endhab)) return;
+  endHab(t.dataset.endhab); S.endHabit[t.dataset.endhab]=t.value.trim(); save();
+  if(ideaPick){ ideaPick.list=ideaList(ideaPick.key.split('-')[1],4); } renderShop(); });
 document.addEventListener('input',e=>{ const t=e.target; if(t.dataset&&t.dataset.stsearch){ stQuery=t.value; stockFilter(); } });
 document.addEventListener('click',e=>{ const b=e.target.closest&&e.target.closest('[data-stclear]'); if(!b) return;
   stQuery=''; const i=document.querySelector('[data-stsearch]'); if(i){ i.value=''; i.focus(); } stockFilter(); });
@@ -2179,6 +2199,9 @@ Pense à mettre le prix avec ✏️.`:'Tout est déjà dans ta liste. 🙂'); re
   if(d.imore&&ideaPick){ const sl0=ideaPick.key.split('-')[1], old=new Set(ideaPick.list.map(x=>[...(x.uses||[])].sort().join(',')||x.text));
     const fresh=ideaList(sl0,12).filter(x=>!old.has([...(x.uses||[])].sort().join(',')||x.text)); ideaPick.list=(fresh.length?fresh:ideaList(sl0,4)).slice(0,4); renderShop(); return; }
   if(d.iclose){ ideaPick=null; renderShop(); return; }
+  if(d.endbuy){ const m=endHabItems(d.endbuy).miss; const cat=w=>/fromage|yaourt|liegeois|creme/.test(noAcc(w))?'laitier':/compote/.test(noAcc(w))?'sucre':/pain/.test(noAcc(w))?'pain':'sale';
+    m.filter(w=>!S.shop.items.some(i=>i.m===S.shop.cur&&!i.done&&noAcc(i.text)===noAcc(w))).forEach(w=>S.shop.items.push({id:uid(),cat:cat(w),text:w.charAt(0).toUpperCase()+w.slice(1),qty:1,price:0,done:false,m:S.shop.cur,store:SHOP_DEF_STORE}));
+    save(); pop('🛒'); renderShop(); alert('Ajouté à ta liste : '+m.join(', ')); return; }
   if(d.meaten){ let sl=W()[d.meaten]; if(!sl&&/-matin$/.test(d.meaten)&&S.breakfast.on) sl=W()[d.meaten]=bfSlot(); if(!sl) return; sl.eaten=!sl.eaten;
     (sl.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s) s.n=Math.max(0,Math.round((s.n+(sl.eaten?-1:1)*takeOf(s,sl,id))*100)/100); });
     if(sl.eaten) pop('😋'); save(); renderShop(); return; }
