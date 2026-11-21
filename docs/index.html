@@ -182,7 +182,7 @@ label.chip.pick input{width:18px;height:18px;min-height:0;padding:0;margin:0;fle
 .meal.eaten .mtext{text-decoration:line-through;color:var(--mute)}
 .evh{font-size:1rem;margin:16px 0 4px;display:flex;gap:8px;align-items:center}
 .awaycard{border:2px solid #f3c677;background:#fff8ea}
-.bal .chip{font-size:.72rem;padding:1px 7px}
+.bal .chip{font-size:.72rem;padding:1px 7px;cursor:pointer;min-height:26px}
 .baltip{display:block;margin-top:2px}
 .bfres{background:var(--soft);border-radius:14px;padding:8px 12px;margin:6px 0 8px}
 .recipe{background:var(--soft);border-radius:14px;padding:10px 14px;margin:4px 0 10px;width:100%}
@@ -1699,15 +1699,20 @@ let hlOpen=false;
 const FG={
   veg:/légume|salade|iceberg|tomate|concombre|courgette|carotte|haricots? verts?|brocoli|épinard|poivron|chou|champignon|soupe|potiron|poireau|aubergine|ratatouille|crudité|betterave|radis|endive|asperge|petits? pois|poêlée/i,
   fruit:/\bpommes?\b(?! de terre)|banane|orange|fruit|kiwi|poire|clémentine|mandarine|fraise|framboise|myrtille|abricot|pêche|raisin|ananas|mangue/i,
-  prot:/œuf|oeuf|poulet|dinde|jambon|poisson|thon|saumon|sardine|maquereau|cabillaud|colin|steak|bœuf|boeuf|burger|lentille|pois chiche|haricots? rouges?|tofu|tempeh|skyr|fromage blanc|cottage|viande|crevette|filet|escalope|feta|mozzarella|fromage/i,
-  starch:/pâtes|nouilles|riz|pain|pommes? de terre|purée(?![^+]*légume)|grenaille|semoule|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|flocons|avoine|patate|tortilla|wrap|galette|blé|céréales|frites|biscotte/i,
+  prot:/œuf|oeuf|poulet|cordon|nuggets|pané|saucisse|knacki|chipolata|merguez|lardon|dinde|jambon|poisson|thon|saumon|sardine|maquereau|cabillaud|colin|steak|bœuf|boeuf|burger|lentille|pois chiche|haricots? rouges?|tofu|tempeh|skyr|fromage blanc|cottage|viande|crevette|filet|escalope|feta|mozzarella|fromage/i,
+  starch:/pâtes|nouilles|riz|pain|pommes? de terre|purée|grenaille|semoule|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|flocons|avoine|patate|tortilla|wrap|galette|blé|céréales|frites|biscotte/i,
   whole:/complet|avoine|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|seigle|patate douce|sarrasin|épeautre|son\b|petit épeautre|riz brun|vapeur/i,
   sweet:/liégeois|biscuit|chocolat|gâteau|soda|coca|jus|bonbon|crème dessert|nutella|pâte à tartiner|sucre|céréales|viennoiserie|brioche|croissant|pain au chocolat|confiture|glace|sirop/i,
   proc:/burger|nuggets|pané|saucisse|chips|pizza|cordon bleu|lardons|chorizo|salami|knacki|frites|plat préparé|cordon/i,
 };
+const noAcc=t=>String(t).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const FGN=Object.fromEntries(Object.entries(FG).map(([k,re])=>[k,new RegExp(noAcc(re.source),'i')])); // sans accents : « legumes » = « légumes »
 const mealTxt=sl=>[sl.text||'',...(sl.uses||[]).map(id=>(S.stock.find(s=>s.id===id)||{}).text||'')].join(' ');
 function balanceOf(sl,slot){
-  const t=mealTxt(sl), has=k=>FG[k].test(t), r={veg:has('veg'),fruit:has('fruit'),prot:has('prot'),starch:has('starch'),whole:has('whole'),sweet:has('sweet'),proc:has('proc')};
+  const t=noAcc(mealTxt(sl)), has=k=>FGN[k].test(t), r={veg:has('veg'),fruit:has('fruit'),prot:has('prot'),starch:has('starch'),whole:has('whole'),sweet:has('sweet'),proc:has('proc')};
+  const fx=sl.fix||{}; // corrections faites à la main en touchant les pastilles
+  if(fx.veg!=null) r.veg=fx.veg; if(fx.prot!=null) r.prot=fx.prot;
+  if(fx.starch) { r.starch=fx.starch!=='no'; r.whole=fx.starch==='whole'; }
   const tips=[];
   if(!r.prot) tips.push('ajoute une protéine (œufs, poulet, poisson, lentilles, skyr…) : ça cale et stabilise le sucre dans le sang');
   if(slot==='matin'){ if(!r.veg&&!r.whole) tips.push('ajoute des fibres salées : pain complet ou aux céréales, ou quelques crudités (tomate, concombre)'); }
@@ -1718,9 +1723,10 @@ function balanceOf(sl,slot){
   const score=(r.prot?1:0)+((slot==='matin'?(r.veg||r.whole):r.veg)?1:0)+((!r.starch||r.whole)?1:0)-(r.sweet||r.proc?1:0);
   return {r,tips,ok:score>=3};
 }
-function balanceHtml(sl,slot){
-  const b=balanceOf(sl,slot), i=(on,e,l)=>`<span class="chip ${on?'on':''}" title="${l}">${e}${on?'✓':'·'}</span>`;
-  return `<span class="chips bal" style="margin:4px 0 0">${i(slot==='matin'?(b.r.veg||b.r.whole):b.r.veg,slot==='matin'?'🥒':'🥦',slot==='matin'?'Fibres : crudités ou pain complet':'Légumes')}${i(b.r.prot,'🍗','Protéines')}${i(!b.r.starch||b.r.whole,'🌾','Féculents complets')}${b.ok?'<span class="chip nowchip">⚖️ équilibré</span>':''}</span>${b.tips.length?`<span class="sub baltip">💡 ${b.tips[0]}</span>`:''}`;
+function balanceHtml(sl,slot,key){
+  const b=balanceOf(sl,slot), i=(g,on,e,l,mark)=>`<button type="button" class="chip ${on?'on':''}" data-bal="${key}|${g}" title="${l} · touche pour corriger">${e}${mark||(on?'✓':'·')}</button>`;
+  const vOn=slot==='matin'?(b.r.veg||b.r.whole):b.r.veg;
+  return `<span class="chips bal" style="margin:4px 0 0">${i('veg',vOn,slot==='matin'?'🥒':'🥦',slot==='matin'?'Fibres : crudités ou pain complet':'Légumes')}${i('prot',b.r.prot,'🍗','Viande, poisson, œufs, protéines')}${i('starch',b.r.starch,'🌾',b.r.whole?'Féculent complet':b.r.starch?'Féculent (pas complet)':'Pas de féculent',b.r.starch?(b.r.whole?'✓':'~'):'·')}${b.ok?'<span class="chip nowchip">⚖️ équilibré</span>':''}</span>${b.tips.length?`<span class="sub baltip">💡 ${b.tips[0]}</span>`:''}`;
 }
 /* Idées de repas équilibrés, IG bas et anti-inflammatoires, avec la recette (quantités pour 1 personne) :
    [slot, titre, ingrédients [nom, rayon, quantité, unité, facultatif?], étapes, minutes] */
@@ -1847,7 +1853,7 @@ function mealsHtml(){
         const used=(sl.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean), same=used.map(s=>shortName(s.text)).join(' + ')===sl.text;
         const chips=same?'':used.map(s=>`<span class="chip">🥫 ${useQ(sl,s.id)>1?useQ(sl,s.id)+' × ':''}${esc(shortName(s.text))}</span>`).join(' ');
         return `<div class="meal ${sl.eaten?'eaten':''}"><span class="mlabel">${l}</span>
-          <span class="mtext">${has?`${esc(sl.text||'')}${chips?`<span class="chips" style="margin:4px 0 0">${chips}</span>`:''}${S.health.on?balanceHtml(sl,k):''}`:'<span class="sub">—</span>'}</span>
+          <span class="mtext">${has?`${esc(sl.text||'')}${chips?`<span class="chips" style="margin:4px 0 0">${chips}</span>`:''}${S.health.on?balanceHtml(sl,k,key):''}`:'<span class="sub">—</span>'}</span>
           <span class="mbtn">${has?`<button class="ghost" data-meaten="${key}" title="${sl.eaten?'Pas encore mangé':'Mangé : retire du stock'}">${sl.eaten?'↺':'✓'}</button>`:`<button class="ghost" data-midea="${key}" title="Une idée avec mon stock">💡</button>`}
           ${(()=>{ const rf=has&&recipeRefFor(sl.text); return rf?`<button class="ghost" data-recopen="${rf}|${wk}|${key}" title="Voir la recette">📖</button>`:''; })()}
           <button class="ghost" data-medit="${key}" aria-label="Modifier ce repas">✏️</button></span>
@@ -1974,6 +1980,11 @@ $('#tab-shop').addEventListener('click',e=>{
   const W=()=>S.meals[S.shop.week]||(S.meals[S.shop.week]={});
   if(d.medit){ const k=S.shop.week+'|'+d.medit; mealOpen=mealOpen===k?null:k; renderShop(); return; }
   if(d.mclose){ mealOpen=null; renderShop(); return; }
+  if(d.bal){ const [key,g]=d.bal.split('|'), w=W(); let sl=w[key]; if(!sl&&/-matin$/.test(key)&&S.breakfast.on) sl=w[key]=bfSlot(); if(!sl) return;
+    const b=balanceOf(sl,key.split('-')[1]), fx=sl.fix||(sl.fix={});
+    if(g==='starch') fx.starch=!b.r.starch?'yes':!b.r.whole?'whole':'no'; // aucun → féculent → complet → aucun
+    else fx[g]=!(g==='veg'&&key.endsWith('-matin')?(b.r.veg||b.r.whole):b.r[g]);
+    save(); renderShop(); return; }
   if(d.recopen){ recOpen=recOpen===d.recopen?null:d.recopen; recNew=false; recPers=recOpen?(recipeOf(recOpen.split('|')[0])||{}).base||1:1; renderShop(); return; }
   if(d.recclose){ recOpen=null; recNew=false; renderShop(); return; }
   if(d.recp){ recPers=Math.min(12,Math.max(1,recPers+(+d.recp))); renderShop(); return; }
