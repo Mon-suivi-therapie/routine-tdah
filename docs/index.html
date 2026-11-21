@@ -1858,7 +1858,9 @@ function mealFromStock(slot){
   if((isLent(pr)||isLent(sc))&&sauL.length&&Math.random()<.8){ const l=isLent(sc)?sc:pr; pr=rnd(sauT)||rnd(sauL); sc=l; }
   else if(isSau(pr)&&lentL.length&&!isLent(sc)&&Math.random()<.75) sc=rnd(lentL);
   // entrée : crudités ou UN potage
-  const ent=Math.random()<.7?rnd(S.stock.filter(s=>meal(s)&&(has(s,ENTREE)||isSoup(s))&&s!==pr)):null;
+  const soups=S.stock.filter(s=>meal(s)&&isSoup(s)&&s!==pr), crus=S.stock.filter(s=>meal(s)&&has(s,ENTREE)&&s!==pr);
+  const soupP=slot==='soir'?.65:.1; // la soupe : plutôt le soir
+  const ent=Math.random()<.7?(soups.length&&Math.random()<soupP?rnd(soups):rnd(crus)||(slot==='soir'?rnd(soups):null)):null;
   // légume d'accompagnement (purée butternut, haricots, ratatouille…) : pas de 2e soupe, pas la même chose que l'entrée
   const isVeg=s=>has(s,FGN.veg)||has(s,VEGX);
   let side=rnd(S.stock.filter(s=>meal(s)&&isVeg(s)&&!isSoup(s)&&!has(s,ENTREE)&&s!==pr&&s!==sc));
@@ -1908,9 +1910,30 @@ function healthIdea(slot){
 }
 /* 💡 : plusieurs idées différentes, je choisis */
 let ideaPick=null; // {wk,key,list}
-function ideaList(slot,n){
-  const gen=()=>S.health.on||slot==='midi'?healthIdea(slot):mealIdea(), out=[], seen=new Set();
-  for(let i=0;i<40&&out.length<n;i++){ const x=gen(); if(!x) break; const sig=[...(x.uses||[])].sort().join(',')||x.text; if(seen.has(sig)) continue; seen.add(sig); out.push(x); }
+/* Ce que j'ai mangé la veille (midi + soir) et à l'autre repas du jour : à ne pas reproposer tout de suite */
+function recentIds(key){
+  const wk=S.shop.week, i=+String(key).split('-')[0], slot=String(key).split('-')[1], ids=new Set(), words=new Set();
+  const at=(w,d,sl)=>{ const W=S.meals[w]||{}, m=W[d+'-'+sl]; if(!m) return; (m.uses||[]).forEach(id=>ids.add(id));
+    noAcc(m.text||'').split(/[^a-z]+/).filter(x=>x.length>3).forEach(x=>words.add(x.replace(/s$/,''))); };
+  const pw=i>0?wk:addDays(wk,-7), pd=i>0?i-1:6;
+  ['midi','soir'].forEach(sl=>at(pw,pd,sl)); at(wk,i,slot==='midi'?'soir':'midi');
+  // la fin de repas habituelle et les sauces ne comptent pas (c'est normal de les reprendre)
+  const skip=new Set([...endHabItems('midi').out,...endHabItems('soir').out].map(x=>x.id));
+  S.stock.forEach(s=>{ if(SAUCE.test(NT(s))) skip.add(s.id); });
+  skip.forEach(id=>ids.delete(id));
+  return {ids,words};
+}
+function ideaList(slot,n,key){
+  const gen=()=>S.health.on||slot==='midi'?healthIdea(slot):mealIdea(), all=[], seen=new Set();
+  for(let i=0;i<60&&all.length<n*4;i++){ const x=gen(); if(!x) break; const sig=[...(x.uses||[])].sort().join(',')||x.text; if(seen.has(sig)) continue; seen.add(sig); all.push(x); }
+  if(!key) return all.slice(0,n);
+  const R=recentIds(key), same=x=>(x.uses||[]).filter(id=>R.ids.has(id)).length+(x.uses&&x.uses.length?0:noAcc(x.text||'').split(/[^a-z]+/).filter(w=>w.length>3&&R.words.has(w.replace(/s$/,''))).length);
+  // choix un par un : le moins proche de la veille, et le plus différent des idées déjà retenues
+  const pool=all.map((x,k)=>({x,k,o:same(x)})), out=[], used=new Map();
+  while(out.length<n&&pool.length){
+    const sc=y=>y.o*2+(y.x.uses||[]).reduce((t,id)=>t+(used.get(id)||0),0);
+    pool.sort((a,b)=>sc(a)-sc(b)||a.k-b.k); const y=pool.shift(); out.push(y.x);
+    (y.x.uses||[]).forEach(id=>{ if(!R.ids.has(id)) used.set(id,(used.get(id)||0)+1); }); }
   return out;
 }
 function ideaPickHtml(slot){
@@ -2100,7 +2123,7 @@ function stockFilter(){
 }
 document.addEventListener('change',e=>{ const t=e.target; if(!(t.dataset&&t.dataset.endhab)) return;
   endHab(t.dataset.endhab); S.endHabit[t.dataset.endhab]=t.value.trim(); save();
-  if(ideaPick){ ideaPick.list=ideaList(ideaPick.key.split('-')[1],4); } renderShop(); });
+  if(ideaPick){ ideaPick.list=ideaList(ideaPick.key.split('-')[1],4,ideaPick.key); } renderShop(); });
 document.addEventListener('input',e=>{ const t=e.target; if(t.dataset&&t.dataset.stsearch){ stQuery=t.value; stockFilter(); } });
 document.addEventListener('click',e=>{ const b=e.target.closest&&e.target.closest('[data-stclear]'); if(!b) return;
   stQuery=''; const i=document.querySelector('[data-stsearch]'); if(i){ i.value=''; i.focus(); } stockFilter(); });
@@ -2207,14 +2230,14 @@ Pense à mettre le prix avec ✏️.`:'Tout est déjà dans ta liste. 🙂'); re
   if(d.mclear){ const w=W(), k=d.mclear; // petit-déj habituel : « Vider » = pas de petit-déj ce jour-là ; sinon on revient à l'habituel
     if(/-matin$/.test(k)&&S.breakfast.on&&!w[k]) w[k]={text:'',uses:[],q:{},eaten:false}; else delete w[k];
     mealOpen=null; save(); renderShop(); return; }
-  if(d.midea){ const sl0=d.midea.split('-')[1], wk0=S.shop.week, list=ideaList(sl0,4), idea=list[0];
+  if(d.midea){ const sl0=d.midea.split('-')[1], wk0=S.shop.week, list=ideaList(sl0,4,d.midea), idea=list[0];
     if(ideaPick&&ideaPick.wk===wk0&&ideaPick.key===d.midea){ ideaPick=null; renderShop(); return; }
     if(!idea&&sl0==='midi') return alert('Ton stock est vide pour un déjeuner. Ajoute ce que tu as dans « Mon stock » (ou coche tes courses puis « Retirer les articles pris »).');
     if(!idea) return alert('Ton stock est vide (ou tout est déjà prévu). Coche tes courses puis « Retirer les articles pris », ou ajoute ce que tu as dans « Mon stock ».');
     ideaPick={wk:wk0,key:d.midea,list}; mealOpen=null; renderShop(); return; }
   if(d.ipick!=null&&ideaPick){ W()[ideaPick.key]=ideaPick.list[+d.ipick]; ideaPick=null; save(); renderShop(); return; }
   if(d.imore&&ideaPick){ const sl0=ideaPick.key.split('-')[1], old=new Set(ideaPick.list.map(x=>[...(x.uses||[])].sort().join(',')||x.text));
-    const fresh=ideaList(sl0,12).filter(x=>!old.has([...(x.uses||[])].sort().join(',')||x.text)); ideaPick.list=(fresh.length?fresh:ideaList(sl0,4)).slice(0,4); renderShop(); return; }
+    const fresh=ideaList(sl0,12,ideaPick.key).filter(x=>!old.has([...(x.uses||[])].sort().join(',')||x.text)); ideaPick.list=(fresh.length?fresh:ideaList(sl0,4,ideaPick.key)).slice(0,4); renderShop(); return; }
   if(d.iclose){ ideaPick=null; renderShop(); return; }
   if(d.endbuy){ const m=endHabItems(d.endbuy).miss; const cat=w=>/fromage|yaourt|liegeois|creme/.test(noAcc(w))?'laitier':/compote/.test(noAcc(w))?'sucre':/pain/.test(noAcc(w))?'pain':'sale';
     m.filter(w=>!S.shop.items.some(i=>i.m===S.shop.cur&&!i.done&&noAcc(i.text)===noAcc(w))).forEach(w=>S.shop.items.push({id:uid(),cat:cat(w),text:w.charAt(0).toUpperCase()+w.slice(1),qty:1,price:0,done:false,m:S.shop.cur,store:SHOP_DEF_STORE}));
