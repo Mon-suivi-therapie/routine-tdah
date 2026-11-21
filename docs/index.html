@@ -1720,19 +1720,32 @@ function mealForm(key,sl,own){
     <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button>
       <button type="button" class="ghost" data-mclear="${key}">${own?'↺ Remettre l\'habituel':'Vider'}</button><button type="button" class="ghost" data-mclose="1">Annuler</button></span></form>`;
 }
+let stEdit=null;
+const catOpts=sel=>SHOP_CATS.map(([k,e,n])=>`<option value="${k}" ${k===sel?'selected':''}>${e} ${n}</option>`).join('');
+function stockForm(s){
+  return `<form class="promoform" data-stform="${s.id}">
+    <label class="sub" style="width:100%">Nom <input data-k="text" value="${esc(s.text)}" autocomplete="off"></label>
+    <label class="sub">Rayon <select data-k="cat" style="width:auto">${catOpts(s.cat)}</select></label>
+    <label class="sub">Quantité <input data-k="n" type="text" inputmode="decimal" value="${numTxt(s.n)}" style="width:70px"></label>
+    <label class="sub">Unité <select data-k="u" style="width:auto">${unitOpts(s.u)}</select></label>
+    <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button><button type="button" class="ghost" data-stclose="1">Annuler</button></span></form>`;
+}
 function stockHtml(){
-  const rows=SHOP_CATS.flatMap(([k])=>S.stock.filter(s=>s.cat===k)).map(s=>{ const p=plannedOf(s.id), a=s.n-p;
+  if(!S.stock.some(x=>x.id===stEdit)) stEdit=null;
+  const row=s=>{ const p=plannedOf(s.id), a=s.n-p;
     return `<div class="step shoprow"><span class="t" style="flex:1 1 160px;min-width:0">${esc(s.text)}<br><span class="sub">${p?`${p} prévu${p>1?'s':''} pour les repas · `:''}${a<0?`<b class="negtxt">⚠️ il en manque ${unitTxt(s.u,-a)}</b>`:s.n<=0?'épuisé':`<b>${unitTxt(s.u,a)}</b> dispo`}</span></span>
       <span class="ctl"><span class="qty"><button class="ghost" data-stq="-1" data-id="${s.id}" aria-label="Un de moins">−</button><button class="ghost" data-stset="${s.id}" title="Écrire la quantité" style="font-weight:800;min-width:34px">${numTxt(s.n)}</button><button class="ghost" data-stq="1" data-id="${s.id}" aria-label="Un de plus">+</button></span>
-      <select data-stu="${s.id}" aria-label="Unité" style="width:auto;flex:none;padding:4px 6px">${unitOpts(s.u)}</select>
-      <button class="ghost" data-stbuy="${s.id}" title="Ajouter à ma liste de courses">🛒</button><button class="ghost" data-stdel="${s.id}" aria-label="Supprimer">✕</button></span></div>`; }).join('');
+      <button class="ghost" data-stedit="${s.id}" aria-label="Modifier" title="Modifier le nom, le rayon, la quantité ou l'unité">✏️</button>
+      <button class="ghost" data-stbuy="${s.id}" title="Ajouter à ma liste de courses">🛒</button><button class="ghost" data-stdel="${s.id}" aria-label="Supprimer">✕</button></span></div>${stEdit===s.id?stockForm(s):''}`; };
+  const known=SHOP_CATS.map(c=>c[0]), groups=[...SHOP_CATS,['__x','📦','Sans rayon']].map(([k,e,n])=>[e,n,S.stock.filter(s=>k==='__x'?!known.includes(s.cat):s.cat===k)]).filter(g=>g[2].length);
+  const rows=groups.map(([e,n,l])=>`<h3 class="evh">${e} ${n} <span class="chip">${l.length}</span></h3>${l.map(row).join('')}`).join('');
   return `<div class="card routine"><h2>🥫 Mon stock <span class="chip">${S.stock.length} article${S.stock.length>1?'s':''}</span></h2>
-    <p class="sub">Choisis l'unité de chaque article (pots, sachets, boîtes, paquets, kg…) et touche le nombre pour l'écrire. Rempli tout seul quand tu « retires les articles pris » de ta liste ; tu peux aussi ajouter ce que tu as déjà.</p>
+    <p class="sub">Rangé par rayon. Touche le nombre pour l'écrire, ✏️ pour corriger le nom, le rayon ou l'unité (pots, sachets, kg, cL…). Rempli tout seul quand tu « retires les articles pris » de ta liste ; tu peux aussi ajouter ce que tu as déjà.</p>
     ${rows||'<p class="sub">Vide pour l\'instant.</p>'}
     <form data-stockadd="1" class="row" style="margin-top:10px"><input data-k="text" placeholder="Ex : paquet de pâtes" autocomplete="off" style="flex:1;min-width:150px">
       <input data-k="n" type="text" inputmode="decimal" value="1" aria-label="Quantité" style="width:56px;flex:none">
       <select data-k="u" aria-label="Unité" style="width:auto;flex:none">${unitOpts('piece')}</select>
-      <select data-k="cat" aria-label="Rayon" style="width:auto;flex:none">${SHOP_CATS.filter(([k])=>FOOD_CATS.includes(k)).map(([k,e,n])=>`<option value="${k}" ${k==='sale'?'selected':''}>${e} ${n}</option>`).join('')}</select>
+      <select data-k="cat" aria-label="Rayon" style="width:auto;flex:none">${catOpts('sale')}</select>
       <button class="primary">+</button></form></div>`;
 }
 /* Fêtes : Noël, anniversaires… */
@@ -1805,6 +1818,8 @@ $('#tab-shop').addEventListener('click',e=>{
   if(d.stq){ const s=S.stock.find(x=>x.id===d.id); if(s){ s.n=Math.max(0,Math.round((s.n+(+d.stq))*100)/100); save(); renderShop(); } return; }
   if(d.stset){ const s=S.stock.find(x=>x.id===d.stset); if(!s) return; const r=prompt(`Combien de ${(STOCK_UNITS.find(y=>y[0]===s.u)||STOCK_UNITS[0])[2]} de « ${shortName(s.text)} » ?`,numTxt(s.n)); if(r==null) return;
     const n=parseFloat(String(r).replace(',','.')); if(!(n>=0)) return alert('Écris un nombre (ex : 3 ou 1,5).'); s.n=n; save(); renderShop(); return; }
+  if(d.stedit){ stEdit=stEdit===d.stedit?null:d.stedit; renderShop(); return; }
+  if(d.stclose){ stEdit=null; renderShop(); return; }
   if(d.stdel){ S.stock=S.stock.filter(x=>x.id!==d.stdel); save(); renderShop(); return; }
   if(d.stbuy){ const s=S.stock.find(x=>x.id===d.stbuy); if(!s) return;
     const old=[...S.shop.items].reverse().find(i=>i.text===s.text);
@@ -1843,6 +1858,9 @@ $('#tab-shop').addEventListener('submit',e=>{
   if(d.bfform){ e.preventDefault(); const B=S.breakfast; B.text=v('text'); B.uses=[]; B.q={}; B.linked=true;
     f.querySelectorAll('[data-bq]').forEach(i=>{ const n=Math.round(+i.value); if(n>0){ B.uses.push(i.dataset.bq); B.q[i.dataset.bq]=n; } });
     bfOpen=false; save(); renderShop(); return; }
+  if(d.stform){ e.preventDefault(); const st=S.stock.find(x=>x.id===d.stform); if(!st) return;
+    const text=v('text'), n=parseFloat(String(v('n')).replace(',','.')); if(!text) return alert('Écris un nom.'); if(!(n>=0)) return alert('Écris une quantité (ex : 3 ou 1,5).');
+    st.text=text; st.cat=v('cat')||st.cat; st.u=v('u')||st.u; st.n=n; stEdit=null; save(); renderShop(); return; }
   if(d.stockadd){ e.preventDefault(); const text=v('text'); if(!text) return;
     const n=parseFloat(String(v('n')).replace(',','.')); if(!(n>0)) return alert('Écris une quantité (ex : 3 ou 1,5).');
     S.stock.push({id:uid(),text,cat:v('cat')||'sale',n,u:v('u')||'piece'}); save(); renderShop(); return; }
