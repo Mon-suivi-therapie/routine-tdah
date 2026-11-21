@@ -185,6 +185,9 @@ label.chip.pick input{width:18px;height:18px;min-height:0;padding:0;margin:0;fle
 .bal .chip{font-size:.72rem;padding:1px 7px;cursor:pointer;min-height:26px}
 .baltip{display:block;margin-top:2px}
 .pastday{opacity:.7}
+.stsearch{position:relative;margin:6px 0 4px}
+.stsearch input{width:100%;padding-right:44px}
+.stsearch button{position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:4px 10px}
 .mqlist{width:100%;display:flex;flex-direction:column;gap:6px}
 .mqrow{display:flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:14px;padding:6px 10px;cursor:pointer}
 .mqrow.on{border-color:var(--pink-deep);background:var(--soft)}
@@ -1962,18 +1965,36 @@ function stockForm(s){
     <label class="sub">Unité <select data-k="u" style="width:auto">${unitOpts(s.u)}</select></label>
     <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button><button type="button" class="ghost" data-stclose="1">Annuler</button></span></form>`;
 }
+/* Recherche rapide dans le stock : filtre en direct, sans accents ni majuscules */
+let stQuery='';
+const stNorm=t=>noAcc(String(t).toLowerCase()).replace(/œ/g,'oe').replace(/æ/g,'ae').trim();
+const stMatch=(s,q)=>!q||stNorm(s.text).includes(q);
+function stockFilter(){
+  const box=document.querySelector('[data-stbox]'); if(!box) return;
+  const q=stNorm(stQuery); let n=0;
+  box.querySelectorAll('[data-stgrp]').forEach(g=>{ let k=0;
+    g.querySelectorAll('[data-strow]').forEach(r=>{ const ok=!q||r.dataset.strow.includes(q); r.hidden=!ok; if(ok) k++; });
+    g.hidden=!k; const c=g.querySelector('[data-stcnt]'); if(c) c.textContent=k; n+=k; });
+  const none=box.querySelector('[data-stnone]'); if(none){ none.hidden=!(q&&!n); none.querySelector('b').textContent=stQuery.trim(); }
+  const clr=box.querySelector('[data-stclear]'); if(clr) clr.hidden=!q;
+}
+document.addEventListener('input',e=>{ const t=e.target; if(t.dataset&&t.dataset.stsearch){ stQuery=t.value; stockFilter(); } });
+document.addEventListener('click',e=>{ const b=e.target.closest&&e.target.closest('[data-stclear]'); if(!b) return;
+  stQuery=''; const i=document.querySelector('[data-stsearch]'); if(i){ i.value=''; i.focus(); } stockFilter(); });
 function stockHtml(){
   if(!S.stock.some(x=>x.id===stEdit)) stEdit=null;
+  const sq=stNorm(stQuery);
   const row=s=>{ const p=plannedOf(s.id), a=s.n-p;
-    return `<div class="step shoprow"><span class="t" style="flex:1 1 160px;min-width:0">${esc(s.text)}<br><span class="sub">${p?`${p} prévu${p>1?'s':''} pour les repas · `:''}${a<0?`<b class="negtxt">⚠️ il en manque ${unitTxt(s.u,-a)}</b>`:s.n<=0?'épuisé':`<b>${unitTxt(s.u,a)}</b> dispo`}</span></span>
+    return `<div data-strow="${esc(stNorm(s.text))}" ${stMatch(s,sq)?'':'hidden'}><div class="step shoprow"><span class="t" style="flex:1 1 160px;min-width:0">${esc(s.text)}<br><span class="sub">${p?`${p} prévu${p>1?'s':''} pour les repas · `:''}${a<0?`<b class="negtxt">⚠️ il en manque ${unitTxt(s.u,-a)}</b>`:s.n<=0?'épuisé':`<b>${unitTxt(s.u,a)}</b> dispo`}</span></span>
       <span class="ctl"><span class="qty"><button class="ghost" data-stq="-1" data-id="${s.id}" aria-label="Un de moins">−</button><button class="ghost" data-stset="${s.id}" title="Écrire la quantité" style="font-weight:800;min-width:34px">${numTxt(s.n)}</button><button class="ghost" data-stq="1" data-id="${s.id}" aria-label="Un de plus">+</button></span>
       <button class="ghost" data-stedit="${s.id}" aria-label="Modifier" title="Modifier le nom, le rayon, la quantité ou l'unité">✏️</button>
-      <button class="ghost" data-stbuy="${s.id}" title="Ajouter à ma liste de courses">🛒</button><button class="ghost" data-stdel="${s.id}" aria-label="Supprimer">✕</button></span></div>${stEdit===s.id?stockForm(s):''}`; };
+      <button class="ghost" data-stbuy="${s.id}" title="Ajouter à ma liste de courses">🛒</button><button class="ghost" data-stdel="${s.id}" aria-label="Supprimer">✕</button></span></div>${stEdit===s.id?stockForm(s):''}</div>`; };
   const known=SHOP_CATS.map(c=>c[0]), groups=[...SHOP_CATS,['__x','📦','Sans rayon']].map(([k,e,n])=>[e,n,S.stock.filter(s=>k==='__x'?!known.includes(s.cat):s.cat===k)]).filter(g=>g[2].length);
-  const rows=groups.map(([e,n,l])=>`<h3 class="evh">${e} ${n} <span class="chip">${l.length}</span></h3>${l.map(row).join('')}`).join('');
+  const rows=groups.map(([e,n,l])=>`<div data-stgrp="1" ${l.some(x=>stMatch(x,sq))?'':'hidden'}><h3 class="evh">${e} ${n} <span class="chip" data-stcnt="1">${l.filter(x=>stMatch(x,sq)).length}</span></h3>${l.map(row).join('')}</div>`).join('');
   return `<div class="card routine"><h2>🥫 Mon stock <span class="chip">${S.stock.length} article${S.stock.length>1?'s':''}</span></h2>
     <p class="sub">Rangé par rayon. Touche le nombre pour l'écrire, ✏️ pour corriger le nom, le rayon ou l'unité (pots, sachets, kg, cL…). Rempli tout seul quand tu « retires les articles pris » de ta liste ; tu peux aussi ajouter ce que tu as déjà.</p>
-    ${rows||'<p class="sub">Vide pour l\'instant.</p>'}
+    ${S.stock.length>3?`<div class="stsearch"><input type="search" data-stsearch="1" value="${esc(stQuery)}" placeholder="🔍 Chercher dans mon stock (ex : œuf, pâtes…)" autocomplete="off" enterkeyhint="search"><button type="button" class="ghost" data-stclear="1" aria-label="Effacer la recherche" ${sq?'':'hidden'}>✕</button></div>`:''}
+    <div data-stbox="1">${rows||'<p class="sub">Vide pour l\'instant.</p>'}<p class="sub" data-stnone="1" ${sq&&!S.stock.some(x=>stMatch(x,sq))?'':'hidden'}>Rien trouvé pour « <b>${esc(stQuery.trim())}</b> ». Tu peux l'ajouter juste en dessous.</p></div>
     <form data-stockadd="1" class="row" style="margin-top:10px"><input data-k="text" placeholder="Ex : paquet de pâtes" autocomplete="off" style="flex:1;min-width:150px">
       <input data-k="n" type="text" inputmode="decimal" value="1" aria-label="Quantité" style="width:56px;flex:none">
       <select data-k="u" aria-label="Unité" style="width:auto;flex:none">${unitOpts('piece')}</select>
