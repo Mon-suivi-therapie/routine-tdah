@@ -184,6 +184,13 @@ label.chip.pick input{width:18px;height:18px;min-height:0;padding:0;margin:0;fle
 .awaycard{border:2px solid #f3c677;background:#fff8ea}
 .bal .chip{font-size:.72rem;padding:1px 7px;cursor:pointer;min-height:26px}
 .baltip{display:block;margin-top:2px}
+.mqlist{width:100%;display:flex;flex-direction:column;gap:6px}
+.mqrow{display:flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:14px;padding:6px 10px;cursor:pointer}
+.mqrow.on{border-color:var(--pink-deep);background:var(--soft)}
+.mqrow input[type=checkbox]{width:auto;flex:none}
+.mqname{flex:1;min-width:0;overflow-wrap:anywhere}
+.mqq{flex:none;display:flex;align-items:center;gap:4px}
+.mqq input{width:64px;padding:6px 8px}
 .bfres{background:var(--soft);border-radius:14px;padding:8px 12px;margin:6px 0 8px}
 .recipe{background:var(--soft);border-radius:14px;padding:10px 14px;margin:4px 0 10px;width:100%}
 .recipe ul,.recipe ol{margin:6px 0 10px;padding-left:22px;line-height:1.5}
@@ -1800,10 +1807,7 @@ function lunchFromStock(){
   const ok=s=>availOf(s)>0&&!FG.sweet.test(s.text), pick=(re,not)=>{ const l=S.stock.filter(s=>ok(s)&&re.test(s.text)&&!(not&&not.test(s.text))); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
   const pr=pick(FG.prot,/fromage|vache qui rit|feta|mozzarella/i)||pick(FG.prot), vg=pick(FG.veg,/purée(?![^+]*légume)/i), sc=pick(FG.whole)||pick(FG.starch,/biscotte|céréales/i);
   const parts=[...new Set([pr,vg,sc].filter(Boolean))]; if(!parts.length) return null;
-  const egg=s=>/œuf|oeuf/i.test(s.text)&&!WEIGHT_U.includes(s.u), q={};
-  const hint=s=>{ if(s===pr){ if(egg(s)){ q[s.id]=2; return '2'; } if(!WEIGHT_U.includes(s.u)&&/burger|steak|filet|escalope|pavé|cuisse|dos|tranche/i.test(s.text)) return '1'; return '≈ 120 g'; }
-    if(s===vg) return '½ assiette';
-    if(/pain/i.test(s.text)) return '1 tranche'; if(/pomme|patate|grenaille/i.test(s.text)) return '≈ 150 g'; return '≈ 50 g cru'; };
+  const q={}, hint=s=>{ const r=recoQty(s); q[s.id]=r.n; return r.txt; };
   return {text:parts.map(s=>`${shortName(s.text)} (${hint(s)})`).join(' + '),uses:parts.map(s=>s.id),q,stockOnly:true};
 }
 function healthIdea(slot){
@@ -1811,7 +1815,7 @@ function healthIdea(slot){
   // 1) avec le stock : protéine + légume (ou pain complet le matin) + féculent (complet de préférence)
   const ok=s=>availOf(s)>0, pick=re=>{ const l=S.stock.filter(s=>ok(s)&&re.test(s.text)); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
   if(slot==='matin'){ const e=pick(/œuf|oeuf/i), b=pick(/pain/i), c=pick(/fromage|emmental|comté|vache qui rit|camembert|raclette/i), v=pick(/tomate|concombre|radis|crudité/i);
-    const u=[e,b,c,v].filter(Boolean); if(u.length>=2) return {text:u.map(s=>shortName(s.text)).join(' + '),uses:u.map(s=>s.id),q:e&&!WEIGHT_U.includes(e.u)?{[e.id]:2}:{}}; }
+    const u=[e,b,c,v].filter(Boolean); if(u.length>=2) return {text:u.map(s=>`${shortName(s.text)} (${recoQty(s).txt})`).join(' + '),uses:u.map(s=>s.id),q:Object.fromEntries(u.map(s=>[s.id,recoQty(s).n]))}; }
   const pr=pick(FG.prot), vg=slot==='matin'?pick(FG.veg):pick(FG.veg), st=pick(FG.whole)||pick(FG.starch);
   if(pr&&vg){ const u=[...new Set([pr,vg,st].filter(Boolean))]; return {text:u.map(s=>shortName(s.text)).join(' + '),uses:u.map(s=>s.id)}; }
   // 2) sinon : une idée de la liste, en priorité celle dont j'ai le plus d'ingrédients
@@ -1885,15 +1889,47 @@ function breakfastHtml(){
   return `<div class="card routine"><h2>🥐 Mon petit-déj habituel</h2><form data-bfform="1" class="promoform">
     <input data-k="text" value="${esc(B.text||'')}" placeholder="Ex : petit pain, fromage, 2 œufs" autocomplete="off" style="flex:1 1 100%">
     ${opts.length?`<span class="sub" style="width:100%">Ce qu'il prend dans mon stock (0 = rien) :</span>
-    ${opts.map(s=>`<label class="sub" style="display:flex;gap:8px;align-items:center;width:100%"><input type="number" min="0" step="1" inputmode="numeric" data-bq="${s.id}" value="${(B.uses||[]).includes(s.id)?useQ(B,s.id):0}" style="width:60px;flex:none"> ${esc(shortName(s.text))} <span class="sub">(${unitTxt(s.u,s.n)})</span></label>`).join('')}`:'<p class="sub">Ton stock est vide : ajoute d\'abord tes œufs, ton pain, ton fromage dans « Mon stock ».</p>'}
+    ${opts.map(s=>`<label class="sub" style="display:flex;gap:8px;align-items:center;width:100%"><input type="text" inputmode="decimal" data-bq="${s.id}" data-bqr="${recoQty(s).n}" value="${(B.uses||[]).includes(s.id)?useQ(B,s.id):0}" style="width:60px;flex:none"> <span>${esc(shortName(s.text))} <span class="sub">(${unitTxt(s.u,s.n)}) · 👉 conseil : <b>${esc(recoQty(s).txt)}</b>${recoQty(s).n!==1||WEIGHT_U.includes(s.u)?` = ${unitTxt(s.u,recoQty(s).n)}`:''}</span></span></label>`).join('')}`:'<p class="sub">Ton stock est vide : ajoute d\'abord tes œufs, ton pain, ton fromage dans « Mon stock ».</p>'}
     <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button><button type="button" class="ghost" data-bfclose="1">Annuler</button></span></form></div>`;
+}
+/* Quantité conseillée pour 1 personne (assiette équilibrée), convertie dans l'unité du stock */
+function pkgGrams(t){ const m=String(t).match(/(\d+(?:[.,]\d+)?)\s*(kg|g)\b/i); if(!m) return 0; const v=parseFloat(m[1].replace(',','.')); return m[2].toLowerCase()==='kg'?v*1000:v; }
+function recoQty(s){
+  const t=noAcc(s.text), u=s.u; let g=0, cnt=1, txt='';
+  if(/oeuf|œuf/.test(t)){ cnt=2; txt='2 œufs'; }
+  else if(/nugget/.test(t)){ cnt=5; g=100; txt='5 nuggets (≈ 100 g)'; }
+  else if(/saucisse|knacki|chipolata|merguez/.test(t)){ cnt=2; g=100; txt='2 saucisses'; }
+  else if(/burger|steak|cordon|filet|escalope|pave|cuisse|poisson pane/.test(t)){ cnt=1; g=120; txt='1 pièce (≈ 120 g)'; }
+  else if(/vache qui rit|st moret|kiri|carre frais/.test(t)){ cnt=1; g=20; txt='1 portion'; }
+  else if(/fromage blanc|yaourt|skyr|compote/.test(t)){ cnt=1; g=150; txt='1 pot (≈ 150 g)'; }
+  else if(/fromage|emmental|comte|feta|mozza|raclette|camembert|chevre/.test(t)){ g=30; txt='30 g'; }
+  else if(/jambon/.test(t)){ cnt=2; g=80; txt='2 tranches'; }
+  else if(/soupe|veloute/.test(t)){ g=300; txt='1 bol (300 mL)'; }
+  else if(/pain|baguette/.test(t)){ g=40; txt=/petit/.test(t)?'1 petit pain':'1 tranche (≈ 40 g)'; }
+  else if(/pomme de terre|patate|grenaille/.test(t)){ g=150; txt='≈ 150 g'; }
+  else if(/puree/.test(t)&&/legume|epinard|brocoli|courgette|carotte|haricot|potiron/.test(t)){ g=200; txt=/surgel/.test(t)||s.cat==='surgele'?'≈ 200 g (½ assiette) · surgelé : pèse-la ou regarde le poids d\'un galet sur le paquet':'≈ 200 g (½ assiette)'; }
+  else if(/puree/.test(t)){ g=150; txt='≈ 150 g (¼ assiette)'; }
+  else if(/pates|riz|semoule|quinoa|boulgour|lentille|pois chiche|nouille|ble /.test(t)){ g=50; txt='≈ 50 g cru (¼ assiette)'; }
+  else if(FGN.prot.test(t)){ g=120; txt='≈ 120 g'; }
+  else if(FGN.veg.test(t)){ g=200; txt='≈ 200 g (½ assiette)'; }
+  else if(FGN.fruit.test(t)){ txt='1 fruit'; }
+  else txt='1 portion';
+  let n;
+  if(u==='g') n=g||100; else if(u==='kg') n=(g||100)/1000; else if(u==='mL') n=g||200; else if(u==='cL') n=(g||200)/10; else if(u==='L') n=(g||200)/1000;
+  else if(['paquet','boite','sachet','bouteille','brique','barquette'].includes(u)&&g&&cnt===1){ const P=pkgGrams(s.text); n=P?Math.max(0.05,Math.round(g/P*100)/100):1; }
+  else n=cnt;
+  return {n:Math.round(n*100)/100,txt};
 }
 function mealForm(key,sl,own){
   const opts=S.stock.filter(s=>s.n>0||(sl.uses||[]).includes(s.id));
   return `<form class="promoform" data-meal="${key}">
     <input data-k="text" value="${esc(sl.text||'')}" placeholder="Ex : pâtes bolo, resto, chez maman…" autocomplete="off" list="recList" style="flex:1 1 100%">
     <datalist id="recList">${[...S.recipes.map(r=>r.title),...HEALTH_IDEAS.map(x=>x[1])].map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
-    ${opts.length?`<span class="sub" style="width:100%">Ce que j'utilise de mon stock :</span><span class="chips" style="width:100%">${opts.map(s=>`<label class="chip pick"><input type="checkbox" value="${s.id}" ${(sl.uses||[]).includes(s.id)?'checked':''}> ${esc(shortName(s.text))} <span class="sub">(${unitTxt(s.u,availOf(s))} dispo)</span></label>`).join('')}</span>`:''}
+    ${opts.length?`<span class="sub" style="width:100%">Ce que j'utilise de mon stock : coche, la quantité conseillée se met toute seule (tu peux la changer).</span>
+    <div class="mqlist">${opts.map(s=>{ const on=(sl.uses||[]).includes(s.id), r=recoQty(s), q=on&&sl.q&&sl.q[s.id]?sl.q[s.id]:r.n, un=(STOCK_UNITS.find(y=>y[0]===s.u)||STOCK_UNITS[0]);
+      return `<label class="mqrow ${on?'on':''}"><input type="checkbox" value="${s.id}" data-mpick="${s.id}" ${on?'checked':''}>
+        <span class="mqname">${esc(shortName(s.text))}<br><span class="sub">👉 conseil : <b>${esc(r.txt)}</b> · ${unitTxt(s.u,availOf(s))} dispo</span></span>
+        <span class="mqq"><input type="text" inputmode="decimal" data-mq="${s.id}" value="${numTxt(q)}" aria-label="Quantité"> <span class="sub">${q>=2?un[2]:un[1]}</span></span></label>`; }).join('')}</div>`:''}
     <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button>
       <button type="button" class="ghost" data-mclear="${key}">${own?'↺ Remettre l\'habituel':'Vider'}</button><button type="button" class="ghost" data-mclose="1">Annuler</button></span></form>`;
 }
@@ -2041,6 +2077,7 @@ Pense à mettre le prix avec ✏️.`:'Tout est déjà dans ta liste. 🙂'); re
 });
 $('#tab-shop').addEventListener('change',e=>{
   const t=e.target, d=t.dataset;
+  if(d.mpick){ t.closest('.mqrow').classList.toggle('on',t.checked); return; }
   if(d.bfuntil){ S.breakfast.until=t.value||null; save(); renderShop(); return; }
   if(d.stu){ const s=S.stock.find(x=>x.id===d.stu); if(s){ s.u=t.value; save(); renderShop(); } return; }
   if(d.evdate){ findEv(d.evdate).date=t.value; save(); renderShop(); return; }
@@ -2053,7 +2090,8 @@ $('#tab-shop').addEventListener('submit',e=>{
   if(d.meal){ e.preventDefault(); const uses=[...f.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value), text=v('text');
     const W=S.meals[S.shop.week]||(S.meals[S.shop.week]={}), old=W[d.meal];
     if(old&&old.eaten) (old.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s) s.n=Math.round((s.n+takeOf(s,old,id))*100)/100; }); // on rouvre un repas mangé : on remet le stock
-    const base=old||(/-matin$/.test(d.meal)&&S.breakfast.on?bfSlot():{}), q={}; uses.forEach(id=>{ if(base.q&&base.q[id]) q[id]=base.q[id]; });
+    const base=old||(/-matin$/.test(d.meal)&&S.breakfast.on?bfSlot():{}), q={}; uses.forEach(id=>{ const inp=f.querySelector(`[data-mq="${id}"]`), n=inp?parseFloat(String(inp.value).replace(',','.')):NaN;
+      if(n>0) q[id]=Math.round(n*100)/100; else if(base.q&&base.q[id]) q[id]=base.q[id]; });
     if(!text&&!uses.length) delete W[d.meal]; else W[d.meal]={text:text||uses.map(id=>shortName((S.stock.find(s=>s.id===id)||{}).text||'')).join(' + '),uses,q,eaten:false};
     mealOpen=null; save(); renderShop(); return; }
   if(d.recform){ e.preventDefault(); const title=v('title'); if(!title) return alert('Donne un nom au plat.');
@@ -2061,7 +2099,7 @@ $('#tab-shop').addEventListener('submit',e=>{
     let r=S.recipes.find(y=>y.id===d.recform); if(r) Object.assign(r,data); else { r={id:uid(),...data}; S.recipes.push(r); }
     recNew=false; recOpen='c:'+r.id; recPers=r.pers; hlOpen=true; save(); renderShop(); return; }
   if(d.bfform){ e.preventDefault(); const B=S.breakfast; B.text=v('text'); B.uses=[]; B.q={}; B.linked=true;
-    f.querySelectorAll('[data-bq]').forEach(i=>{ const n=Math.round(+i.value); if(n>0){ B.uses.push(i.dataset.bq); B.q[i.dataset.bq]=n; } });
+    f.querySelectorAll('[data-bq]').forEach(i=>{ const n=Math.round(parseFloat(String(i.value).replace(',','.'))*100)/100; if(n>0){ B.uses.push(i.dataset.bq); B.q[i.dataset.bq]=n; } });
     bfOpen=false; save(); renderShop(); return; }
   if(d.stform){ e.preventDefault(); const st=S.stock.find(x=>x.id===d.stform); if(!st) return;
     const text=v('text'), n=parseFloat(String(v('n')).replace(',','.')); if(!text) return alert('Écris un nom.'); if(!(n>=0)) return alert('Écris une quantité (ex : 3 ou 1,5).');
