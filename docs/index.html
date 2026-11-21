@@ -1715,7 +1715,7 @@ function mealIdea(){
 if(!S.health) S.health={on:true};
 let hlOpen=false;
 const FG={
-  veg:/légume|salade|iceberg|tomate|concombre|courgette|carotte|haricots? verts?|brocoli|épinard|poivron|chou|champignon|soupe|potiron|poireau|aubergine|ratatouille|crudité|betterave|radis|endive|asperge|petits? pois|poêlée/i,
+  veg:/légume|salade|butternut|courge|citrouille|potage|velouté|fenouil|céleri|navet|panais|artichaut|blette|mâche|roquette|iceberg|tomate|concombre|courgette|carotte|haricots? verts?|brocoli|épinard|poivron|chou|champignon|soupe|potiron|poireau|aubergine|ratatouille|crudité|betterave|radis|endive|asperge|petits? pois|poêlée/i,
   fruit:/\bpommes?\b(?! de terre)|banane|orange|fruit|kiwi|poire|clémentine|mandarine|fraise|framboise|myrtille|abricot|pêche|raisin|ananas|mangue/i,
   prot:/œuf|oeuf|poulet|cordon|nuggets|pané|saucisse|knacki|chipolata|merguez|lardon|dinde|jambon|poisson|thon|saumon|sardine|maquereau|cabillaud|colin|steak|bœuf|boeuf|burger|lentille|pois chiche|haricots? rouges?|tofu|tempeh|skyr|fromage blanc|cottage|viande|crevette|filet|escalope|feta|mozzarella|fromage/i,
   starch:/pâtes|nouilles|riz|pain|crêpe|crepe|quiche|pizza|lasagne|croque|feuilleté|tarte salée|pommes? de terre|purée|grenaille|semoule|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|flocons|avoine|patate|tortilla|wrap|galette|blé|céréales|frites|biscotte/i,
@@ -1738,8 +1738,10 @@ function balanceOf(sl,slot){
   if(r.starch&&!r.whole) tips.push('version complète si possible (pain complet, riz complet, pâtes al dente, légumineuses)');
   if(r.sweet) tips.push('le sucré plutôt en fin de repas, jamais seul');
   if(r.proc) tips.push('produit transformé : OK de temps en temps, avec beaucoup de légumes à côté');
-  const score=(r.prot?1:0)+((slot==='matin'?(r.veg||r.whole):r.veg)?1:0)+((!r.starch||r.whole)?1:0)-(r.sweet||r.proc?1:0);
-  return {r,tips,ok:score>=3};
+  // équilibré = une protéine + des légumes (ou des fibres le matin). Le complet, le dessert sucré en fin de repas
+  // ou un produit transformé ne l'empêchent pas : ce sont juste des conseils pour faire encore mieux.
+  const ok=r.prot&&(slot==='matin'?(r.veg||r.whole||r.starch):r.veg);
+  return {r,tips,ok};
 }
 function balanceHtml(sl,slot,key){
   const b=balanceOf(sl,slot), i=(g,on,e,l,mark)=>`<button type="button" class="chip ${on?'on':''}" data-bal="${key}|${g}" title="${l} · touche pour corriger">${e}${mark||(on?'✓':'·')}</button>`;
