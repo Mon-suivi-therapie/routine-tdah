@@ -1628,11 +1628,11 @@ function portionsOf(x){
   return Math.max(1,n)*(x.qty||1);
 }
 /* Unités du stock : n = nombre dans cette unité (pots, sachets…). kg/g/L : pas décompté par repas, à ajuster à la main. */
-const STOCK_UNITS=[['portion','portion','portions'],['piece','pièce','pièces'],['pot','pot','pots'],['sachet','sachet','sachets'],['boite','boîte','boîtes'],['paquet','paquet','paquets'],['bouteille','bouteille','bouteilles'],['brique','brique','briques'],['tranche','tranche','tranches'],['barquette','barquette','barquettes'],['kg','kg','kg'],['g','g','g'],['L','L','L']];
-const WEIGHT_U=['kg','g','L'];
+const STOCK_UNITS=[['portion','portion','portions'],['piece','pièce','pièces'],['pot','pot','pots'],['sachet','sachet','sachets'],['boite','boîte','boîtes'],['paquet','paquet','paquets'],['bouteille','bouteille','bouteilles'],['brique','brique','briques'],['tranche','tranche','tranches'],['barquette','barquette','barquettes'],['kg','kg','kg','kg (kilos)'],['g','g','g','g (grammes)'],['L','L','L','L (litres)'],['cL','cL','cL','cL (centilitres)'],['mL','mL','mL','mL (millilitres)']];
+const WEIGHT_U=['kg','g','L','cL','mL'];
 const numTxt=n=>String(Math.round(n*100)/100).replace('.',',');
 const unitTxt=(u,n)=>{ const x=STOCK_UNITS.find(y=>y[0]===u)||STOCK_UNITS[0]; return `${numTxt(n)} ${Math.abs(n)>=2?x[2]:x[1]}`; };
-const unitOpts=sel=>STOCK_UNITS.map(([k,a,b])=>`<option value="${k}" ${k===sel?'selected':''}>${b}</option>`).join('');
+const unitOpts=sel=>STOCK_UNITS.map(([k,a,b,full])=>`<option value="${k}" ${k===sel?'selected':''}>${full||b}</option>`).join('');
 const perMeal=s=>WEIGHT_U.includes(s.u)?0:1;
 function guessUnit(t){ t=String(t);
   if(/yaourt|compote|\bpots?\b|confiture|crème fra/i.test(t)) return 'pot';
@@ -1652,11 +1652,24 @@ function toStock(items){ // articles à manger achetés → stock
   return c;
 }
 const shortName=t=>String(t).replace(/\(.*?\)/g,'').replace(/,.*$/,'').replace(/\s*(Eco\+|Notre Jardin|Tradilège|Délisse|Epi d’or|Pom’lisse|Knorr)/gi,'').replace(/\s+x\s?\d+.*$/i,'').replace(/\s+/g,' ').trim();
-function plannedOf(id){ const st=S.stock.find(x=>x.id===id); if(st&&!perMeal(st)) return 0; let n=0; Object.values(S.meals).forEach(w=>Object.values(w).forEach(sl=>{ if(!sl.eaten&&(sl.uses||[]).includes(id)) n++; })); return n; }
+const useQ=(sl,id)=>(sl.q&&+sl.q[id])||1; // combien d'unités un repas prend (ex. 2 œufs)
+/* Petit-déj habituel : mis tout seul chaque matin, sauf si le jour a son propre petit-déj */
+if(!S.breakfast) S.breakfast={on:true,text:'Petit pain, fromage, 2 œufs',uses:[],q:{},linked:false};
+let bfOpen=false;
+function bfLink(){ const B=S.breakfast; if(B.linked||!S.stock.length) return;
+  [[/petit.?pain|baguette|\bpains?\b/i,1],[/fromage|emmental|comté|vache qui rit|camembert|raclette/i,1],[/œuf|oeuf/i,2]].forEach(([re,q])=>{
+    const st=S.stock.find(x=>re.test(x.text)); if(st&&!B.uses.includes(st.id)){ B.uses.push(st.id); B.q[st.id]=q; } });
+  if(B.uses.length){ B.linked=true; save(); } }
+const bfSlot=()=>({text:S.breakfast.text,uses:[...(S.breakfast.uses||[])],q:{...(S.breakfast.q||{})},eaten:false});
+function plannedOf(id){ const st=S.stock.find(x=>x.id===id); if(st&&!perMeal(st)) return 0; let n=0;
+  Object.values(S.meals).forEach(w=>Object.values(w).forEach(sl=>{ if(!sl.eaten&&(sl.uses||[]).includes(id)) n+=useQ(sl,id); }));
+  const B=S.breakfast; if(B&&B.on&&(B.uses||[]).includes(id)) for(let i=0;i<7;i++){ const iso=addDays(todayKey(),i), dt=new Date(iso+'T12:00:00');
+    if(!(S.meals[mondayOf(dt)]||{})[((dt.getDay()+6)%7)+'-matin']) n+=useQ(B,id); }
+  return n; }
 const availOf=s=>s.n-plannedOf(s.id);
 const mondayOf=d=>{ const x=new Date(d); x.setHours(12,0,0,0); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x.toLocaleDateString('sv'); };
 const addDays=(iso,n)=>{ const d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+n); return d.toLocaleDateString('sv'); };
-const MEAL_SLOTS=[['midi','☀️ Midi'],['soir','🌙 Soir']];
+const MEAL_SLOTS=[['matin','🥐 Petit-déj'],['midi','☀️ Midi'],['soir','🌙 Soir']];
 const SIDE_RE=/purée|pomme(s)? de terre|grenaille|salade|iceberg|tomate|concombre|pain|riz|pâtes|haricot|légume/i;
 const NOT_MEAL_RE=/liégeois|compote|crème légère|matière grasse|vache qui rit|eau |cristaline|promo|beurre|lait|café|sucre|biscuit|chocolat/i;
 function mealIdea(){
@@ -1672,25 +1685,40 @@ function mealsHtml(){
   const wk=S.shop.week||(S.shop.week=mondayOf(new Date())), W=S.meals[wk]||{}, today=todayKey();
   const days=[...Array(7)].map((_,i)=>{ const iso=addDays(wk,i), d=new Date(iso+'T12:00:00');
     return `<div class="card mealday ${iso===today?'today':''}"><h2>${d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'short'})}${iso===today?' <span class="chip nowchip">aujourd\'hui</span>':''}</h2>
-      ${MEAL_SLOTS.map(([k,l])=>{ const key=i+'-'+k, sl=W[key]||{}, open=mealOpen===wk+'|'+key, has=sl.text||(sl.uses||[]).length;
+      ${MEAL_SLOTS.map(([k,l])=>{ const key=i+'-'+k, habit=k==='matin'&&!W[key]&&S.breakfast.on, sl=W[key]||(habit?bfSlot():{}), open=mealOpen===wk+'|'+key, has=sl.text||(sl.uses||[]).length;
         const used=(sl.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean), same=used.map(s=>shortName(s.text)).join(' + ')===sl.text;
-        const chips=same?'':used.map(s=>`<span class="chip">🥫 ${esc(shortName(s.text))}</span>`).join(' ');
+        const chips=same?'':used.map(s=>`<span class="chip">🥫 ${useQ(sl,s.id)>1?useQ(sl,s.id)+' × ':''}${esc(shortName(s.text))}</span>`).join(' ');
         return `<div class="meal ${sl.eaten?'eaten':''}"><span class="mlabel">${l}</span>
           <span class="mtext">${has?`${esc(sl.text||'')}${chips?`<span class="chips" style="margin:4px 0 0">${chips}</span>`:''}`:'<span class="sub">—</span>'}</span>
           <span class="mbtn">${has?`<button class="ghost" data-meaten="${key}" title="${sl.eaten?'Pas encore mangé':'Mangé : retire du stock'}">${sl.eaten?'↺':'✓'}</button>`:`<button class="ghost" data-midea="${key}" title="Une idée avec mon stock">💡</button>`}
           <button class="ghost" data-medit="${key}" aria-label="Modifier ce repas">✏️</button></span>
-          ${open?mealForm(key,sl):''}</div>`; }).join('')}</div>`; }).join('');
+          ${open?mealForm(key,sl,k==='matin'&&!!W[key]&&S.breakfast.on):''}</div>`; }).join('')}</div>`; }).join('');
   return `<div class="card"><div class="row monthnav" style="margin:0"><button class="ghost" data-mwk="-7" aria-label="Semaine précédente">◀</button><b>🍽️ Semaine du ${new Date(wk+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}</b><button class="ghost" data-mwk="7" aria-label="Semaine suivante">▶</button></div>
     <p class="sub">Prévois tes repas avec ce que tu as déjà. 💡 propose une idée avec ton stock, ✓ quand c'est mangé (ça retire du stock).</p></div>
-    ${days}${stockHtml()}`;
+    ${breakfastHtml()}${days}${stockHtml()}`;
 }
-function mealForm(key,sl){
+function breakfastHtml(){
+  bfLink(); const B=S.breakfast;
+  const used=(B.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean);
+  if(!bfOpen) return `<div class="card routine"><h2>🥐 Mon petit-déj habituel ${B.on?'<span class="chip nowchip">chaque matin</span>':'<span class="chip">en pause</span>'}</h2>
+    <p style="margin:4px 0"><b>${esc(B.text||'—')}</b></p>
+    ${used.length?`<span class="chips">${used.map(s=>`<span class="chip">🥫 ${useQ(B,s.id)} × ${esc(shortName(s.text))}</span>`).join('')}</span>`:'<p class="sub">Pas encore relié à ton stock : touche ✏️ pour dire ce qu\'il utilise (ex. 2 œufs).</p>'}
+    <p class="sub">Mis tout seul chaque matin. ✓ quand c'est mangé : ça retire du stock. ✏️ sur un jour pour le changer juste ce jour-là.</p>
+    <div class="row" style="justify-content:flex-start"><button data-bfedit="1">✏️ Modifier</button><button class="ghost" data-bfon="1">${B.on?'⏸️ Mettre en pause':'▶️ Remettre chaque matin'}</button></div></div>`;
+  const opts=S.stock.filter(s=>s.n>0||(B.uses||[]).includes(s.id));
+  return `<div class="card routine"><h2>🥐 Mon petit-déj habituel</h2><form data-bfform="1" class="promoform">
+    <input data-k="text" value="${esc(B.text||'')}" placeholder="Ex : petit pain, fromage, 2 œufs" autocomplete="off" style="flex:1 1 100%">
+    ${opts.length?`<span class="sub" style="width:100%">Ce qu'il prend dans mon stock (0 = rien) :</span>
+    ${opts.map(s=>`<label class="sub" style="display:flex;gap:8px;align-items:center;width:100%"><input type="number" min="0" step="1" inputmode="numeric" data-bq="${s.id}" value="${(B.uses||[]).includes(s.id)?useQ(B,s.id):0}" style="width:60px;flex:none"> ${esc(shortName(s.text))} <span class="sub">(${unitTxt(s.u,s.n)})</span></label>`).join('')}`:'<p class="sub">Ton stock est vide : ajoute d\'abord tes œufs, ton pain, ton fromage dans « Mon stock ».</p>'}
+    <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button><button type="button" class="ghost" data-bfclose="1">Annuler</button></span></form></div>`;
+}
+function mealForm(key,sl,own){
   const opts=S.stock.filter(s=>s.n>0||(sl.uses||[]).includes(s.id));
   return `<form class="promoform" data-meal="${key}">
     <input data-k="text" value="${esc(sl.text||'')}" placeholder="Ex : pâtes bolo, resto, chez maman…" autocomplete="off" style="flex:1 1 100%">
     ${opts.length?`<span class="sub" style="width:100%">Ce que j'utilise de mon stock :</span><span class="chips" style="width:100%">${opts.map(s=>`<label class="chip pick"><input type="checkbox" value="${s.id}" ${(sl.uses||[]).includes(s.id)?'checked':''}> ${esc(shortName(s.text))} <span class="sub">(${unitTxt(s.u,availOf(s))} dispo)</span></label>`).join('')}</span>`:''}
     <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button>
-      <button type="button" class="ghost" data-mclear="${key}">Vider</button><button type="button" class="ghost" data-mclose="1">Annuler</button></span></form>`;
+      <button type="button" class="ghost" data-mclear="${key}">${own?'↺ Remettre l\'habituel':'Vider'}</button><button type="button" class="ghost" data-mclose="1">Annuler</button></span></form>`;
 }
 function stockHtml(){
   const rows=SHOP_CATS.flatMap(([k])=>S.stock.filter(s=>s.cat===k)).map(s=>{ const p=plannedOf(s.id), a=s.n-p;
@@ -1762,11 +1790,16 @@ $('#tab-shop').addEventListener('click',e=>{
   const W=()=>S.meals[S.shop.week]||(S.meals[S.shop.week]={});
   if(d.medit){ const k=S.shop.week+'|'+d.medit; mealOpen=mealOpen===k?null:k; renderShop(); return; }
   if(d.mclose){ mealOpen=null; renderShop(); return; }
-  if(d.mclear){ delete W()[d.mclear]; mealOpen=null; save(); renderShop(); return; }
+  if(d.bfedit){ bfOpen=true; renderShop(); return; }
+  if(d.bfclose){ bfOpen=false; renderShop(); return; }
+  if(d.bfon){ S.breakfast.on=!S.breakfast.on; save(); renderShop(); return; }
+  if(d.mclear){ const w=W(), k=d.mclear; // petit-déj habituel : « Vider » = pas de petit-déj ce jour-là ; sinon on revient à l'habituel
+    if(/-matin$/.test(k)&&S.breakfast.on&&!w[k]) w[k]={text:'',uses:[],q:{},eaten:false}; else delete w[k];
+    mealOpen=null; save(); renderShop(); return; }
   if(d.midea){ const idea=mealIdea(); if(!idea) return alert('Ton stock est vide (ou tout est déjà prévu). Coche tes courses puis « Retirer les articles pris », ou ajoute ce que tu as dans « Mon stock ».');
     W()[d.midea]=idea; save(); renderShop(); return; }
-  if(d.meaten){ const sl=W()[d.meaten]; if(!sl) return; sl.eaten=!sl.eaten;
-    (sl.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s&&perMeal(s)) s.n=Math.max(0,s.n+(sl.eaten?-1:1)); });
+  if(d.meaten){ let sl=W()[d.meaten]; if(!sl&&/-matin$/.test(d.meaten)&&S.breakfast.on) sl=W()[d.meaten]=bfSlot(); if(!sl) return; sl.eaten=!sl.eaten;
+    (sl.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s&&perMeal(s)) s.n=Math.max(0,s.n+(sl.eaten?-1:1)*useQ(sl,id)); });
     if(sl.eaten) pop('😋'); save(); renderShop(); return; }
   /* stock */
   if(d.stq){ const s=S.stock.find(x=>x.id===d.id); if(s){ s.n=Math.max(0,Math.round((s.n+(+d.stq))*100)/100); save(); renderShop(); } return; }
@@ -1803,9 +1836,13 @@ $('#tab-shop').addEventListener('submit',e=>{
   const f=e.target, d=f.dataset, v=k=>{ const i=f.querySelector(`[data-k=${k}]`); return i?i.value.trim():''; };
   if(d.meal){ e.preventDefault(); const uses=[...f.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value), text=v('text');
     const W=S.meals[S.shop.week]||(S.meals[S.shop.week]={}), old=W[d.meal];
-    if(old&&old.eaten) (old.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s&&perMeal(s)) s.n++; }); // on rouvre un repas mangé : on remet le stock
-    if(!text&&!uses.length) delete W[d.meal]; else W[d.meal]={text:text||uses.map(id=>shortName((S.stock.find(s=>s.id===id)||{}).text||'')).join(' + '),uses,eaten:false};
+    if(old&&old.eaten) (old.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s&&perMeal(s)) s.n+=useQ(old,id); }); // on rouvre un repas mangé : on remet le stock
+    const base=old||(/-matin$/.test(d.meal)&&S.breakfast.on?bfSlot():{}), q={}; uses.forEach(id=>{ if(base.q&&base.q[id]) q[id]=base.q[id]; });
+    if(!text&&!uses.length) delete W[d.meal]; else W[d.meal]={text:text||uses.map(id=>shortName((S.stock.find(s=>s.id===id)||{}).text||'')).join(' + '),uses,q,eaten:false};
     mealOpen=null; save(); renderShop(); return; }
+  if(d.bfform){ e.preventDefault(); const B=S.breakfast; B.text=v('text'); B.uses=[]; B.q={}; B.linked=true;
+    f.querySelectorAll('[data-bq]').forEach(i=>{ const n=Math.round(+i.value); if(n>0){ B.uses.push(i.dataset.bq); B.q[i.dataset.bq]=n; } });
+    bfOpen=false; save(); renderShop(); return; }
   if(d.stockadd){ e.preventDefault(); const text=v('text'); if(!text) return;
     const n=parseFloat(String(v('n')).replace(',','.')); if(!(n>0)) return alert('Écris une quantité (ex : 3 ou 1,5).');
     S.stock.push({id:uid(),text,cat:v('cat')||'sale',n,u:v('u')||'piece'}); save(); renderShop(); return; }
