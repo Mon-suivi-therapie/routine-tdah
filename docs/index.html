@@ -184,6 +184,7 @@ label.chip.pick input{width:18px;height:18px;min-height:0;padding:0;margin:0;fle
 .awaycard{border:2px solid #f3c677;background:#fff8ea}
 .bal .chip{font-size:.72rem;padding:1px 7px}
 .baltip{display:block;margin-top:2px}
+.bfres{background:var(--soft);border-radius:14px;padding:8px 12px;margin:6px 0 8px}
 .recipe{background:var(--soft);border-radius:14px;padding:10px 14px;margin:4px 0 10px;width:100%}
 .recipe ul,.recipe ol{margin:6px 0 10px;padding-left:22px;line-height:1.5}
 textarea{margin-top:4px;resize:vertical}
@@ -1667,10 +1668,14 @@ function bfLink(){ const B=S.breakfast; if(B.linked||!S.stock.length) return;
     const st=S.stock.find(x=>re.test(x.text)); if(st&&!B.uses.includes(st.id)){ B.uses.push(st.id); B.q[st.id]=q; } });
   if(B.uses.length){ B.linked=true; save(); } }
 const bfSlot=()=>({text:S.breakfast.text,uses:[...(S.breakfast.uses||[])],q:{...(S.breakfast.q||{})},eaten:false});
-function plannedOf(id){ const st=S.stock.find(x=>x.id===id); if(st&&!perMeal(st)) return 0; let n=0;
-  Object.values(S.meals).forEach(w=>Object.values(w).forEach(sl=>{ if(!sl.eaten&&(sl.uses||[]).includes(id)) n+=useQ(sl,id); }));
-  const B=S.breakfast; if(B&&B.on&&(B.uses||[]).includes(id)) for(let i=0;i<7;i++){ const iso=addDays(todayKey(),i), dt=new Date(iso+'T12:00:00');
-    if(!(S.meals[mondayOf(dt)]||{})[((dt.getDay()+6)%7)+'-matin']) n+=useQ(B,id); }
+// quantité qu'un repas prend : celle écrite (ex. 2 œufs, 30 g de fromage), sinon 1 (rien pour kg/g/L sans quantité écrite)
+const takeOf=(s,sl,id)=>(sl.q&&+sl.q[id])||(perMeal(s)?1:0);
+/* Petit-déj : on garde le stock réservé jusqu'à S.breakfast.until (sinon 7 jours) */
+function bfDays(){ const B=S.breakfast, t=todayKey(); if(B.until&&B.until>=t) return Math.round((new Date(B.until+'T12:00:00')-new Date(t+'T12:00:00'))/864e5)+1; return 7; }
+function bfMornings(){ let n=0; for(let i=0;i<bfDays();i++){ const dt=new Date(addDays(todayKey(),i)+'T12:00:00'); if(!(S.meals[mondayOf(dt)]||{})[((dt.getDay()+6)%7)+'-matin']) n++; } return n; }
+function plannedOf(id){ const st=S.stock.find(x=>x.id===id); if(!st) return 0; let n=0;
+  Object.values(S.meals).forEach(w=>Object.values(w).forEach(sl=>{ if(!sl.eaten&&(sl.uses||[]).includes(id)) n+=takeOf(st,sl,id); }));
+  const B=S.breakfast; if(B&&B.on&&(B.uses||[]).includes(id)) n+=takeOf(st,B,id)*bfMornings();
   return n; }
 const availOf=s=>s.n-plannedOf(s.id);
 const mondayOf=d=>{ const x=new Date(d); x.setHours(12,0,0,0); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x.toLocaleDateString('sv'); };
@@ -1705,27 +1710,27 @@ function balanceOf(sl,slot){
   const t=mealTxt(sl), has=k=>FG[k].test(t), r={veg:has('veg'),fruit:has('fruit'),prot:has('prot'),starch:has('starch'),whole:has('whole'),sweet:has('sweet'),proc:has('proc')};
   const tips=[];
   if(!r.prot) tips.push('ajoute une protéine (œufs, poulet, poisson, lentilles, skyr…) : ça cale et stabilise le sucre dans le sang');
-  if(slot==='matin'){ if(!r.veg&&!r.fruit&&!r.whole) tips.push('ajoute des fibres : pain complet ou aux céréales, un fruit entier ou des crudités'); }
+  if(slot==='matin'){ if(!r.veg&&!r.whole) tips.push('ajoute des fibres salées : pain complet ou aux céréales, ou quelques crudités (tomate, concombre)'); }
   else if(!r.veg) tips.push('ajoute des légumes (la moitié de l\'assiette) : soupe, salade, crudités, poêlée surgelée…');
   if(r.starch&&!r.whole) tips.push('version complète si possible (pain complet, riz complet, pâtes al dente, légumineuses)');
   if(r.sweet) tips.push('le sucré plutôt en fin de repas, jamais seul');
   if(r.proc) tips.push('produit transformé : OK de temps en temps, avec beaucoup de légumes à côté');
-  const score=(r.prot?1:0)+((slot==='matin'?(r.veg||r.fruit||r.whole):r.veg)?1:0)+((!r.starch||r.whole)?1:0)-(r.sweet||r.proc?1:0);
+  const score=(r.prot?1:0)+((slot==='matin'?(r.veg||r.whole):r.veg)?1:0)+((!r.starch||r.whole)?1:0)-(r.sweet||r.proc?1:0);
   return {r,tips,ok:score>=3};
 }
 function balanceHtml(sl,slot){
   const b=balanceOf(sl,slot), i=(on,e,l)=>`<span class="chip ${on?'on':''}" title="${l}">${e}${on?'✓':'·'}</span>`;
-  return `<span class="chips bal" style="margin:4px 0 0">${i(b.r.veg||(slot==='matin'&&b.r.fruit),slot==='matin'?'🍎':'🥦',slot==='matin'?'Fruits ou légumes':'Légumes')}${i(b.r.prot,'🍗','Protéines')}${i(!b.r.starch||b.r.whole,'🌾','Féculents complets')}${b.ok?'<span class="chip nowchip">⚖️ équilibré</span>':''}</span>${b.tips.length?`<span class="sub baltip">💡 ${b.tips[0]}</span>`:''}`;
+  return `<span class="chips bal" style="margin:4px 0 0">${i(slot==='matin'?(b.r.veg||b.r.whole):b.r.veg,slot==='matin'?'🥒':'🥦',slot==='matin'?'Fibres : crudités ou pain complet':'Légumes')}${i(b.r.prot,'🍗','Protéines')}${i(!b.r.starch||b.r.whole,'🌾','Féculents complets')}${b.ok?'<span class="chip nowchip">⚖️ équilibré</span>':''}</span>${b.tips.length?`<span class="sub baltip">💡 ${b.tips[0]}</span>`:''}`;
 }
 /* Idées de repas équilibrés, IG bas et anti-inflammatoires, avec la recette (quantités pour 1 personne) :
    [slot, titre, ingrédients [nom, rayon, quantité, unité, facultatif?], étapes, minutes] */
 const HEALTH_IDEAS=[
-  ['matin','Skyr + fruits rouges + flocons d\'avoine',[['Skyr nature','laitier',150,'g'],['Fruits rouges surgelés','surgele',100,'g'],['Flocons d\'avoine','sucre',30,'g'],['Cannelle','sale',1,'pincée',1]],
-    ['La veille (ou 1 min au micro-ondes) : décongèle les fruits rouges.','Verse le skyr dans un bol.','Ajoute les fruits rouges et leur jus.','Parsème les flocons d\'avoine et une pincée de cannelle.'],5],
-  ['matin','2 œufs + pain complet + tomate',[['Œufs','laitier',2,''],['Pain complet','pain',1,'tranche (40 g)'],['Tomates','fruits',1,''],['Huile d\'olive','sale',1,'c. à café',1]],
-    ['Fais chauffer une poêle avec un filet d\'huile (ou de l\'eau à bouillir pour des œufs à la coque : 6 min).','Casse les 2 œufs, cuis 3-4 min à feu moyen jusqu\'à ce que le blanc soit pris.','Pendant ce temps, grille le pain.','Coupe la tomate en rondelles, sel, poivre.'],10],
-  ['matin','Fromage blanc + pomme + amandes',[['Fromage blanc nature','laitier',150,'g'],['Pommes','fruits',1,''],['Amandes','sucre',15,'g (une petite poignée)']],
-    ['Lave et coupe la pomme en petits dés (garde la peau : plein de fibres).','Mets le fromage blanc dans un bol, ajoute la pomme.','Concasse grossièrement les amandes et parsème.'],5],
+  ['matin','Œufs brouillés + pain complet + fromage',[['Œufs','laitier',2,''],['Pain complet','pain',1,'tranche (40 g)'],['Fromage','laitier',30,'g (emmental, comté…)'],['Tomates cerises','fruits',5,'',1],['Huile d\'olive','sale',1,'c. à café',1]],
+    ['Bats les 2 œufs avec sel et poivre.','Fais chauffer une poêle à feu doux avec un filet d\'huile.','Verse les œufs et remue doucement 2-3 min avec une spatule : retire du feu quand c\'est encore un peu crémeux.','Grille le pain complet, ajoute le fromage.','Bonus fibres : quelques tomates cerises ou rondelles de concombre.'],8],
+  ['matin','Œufs au plat + petit pain + fromage + crudités',[['Œufs','laitier',2,''],['Petit pain complet ou aux céréales','pain',1,''],['Fromage','laitier',30,'g'],['Concombre','fruits',0.25,'',1]],
+    ['Fais chauffer une poêle avec un filet d\'huile.','Casse les 2 œufs, cuis 3-4 min à feu moyen jusqu\'à ce que le blanc soit pris.','Coupe le petit pain, mets le fromage dedans (ou à côté).','Quelques rondelles de concombre ou une tomate pour les fibres.'],8],
+  ['matin','Tartine complète fromage frais + jambon de dinde + œuf dur',[['Pain complet','pain',1,'tranche (40 g)'],['Fromage frais (type St Môret)','laitier',20,'g'],['Jambon de dinde','charcut',1,'tranche'],['Œufs','laitier',1,''],['Concombre','fruits',0.25,'',1]],
+    ['La veille ou le matin : œuf dur 9 min dans l\'eau bouillante, puis eau froide.','Tartine le pain complet de fromage frais.','Ajoute le jambon de dinde et l\'œuf en rondelles.','Quelques rondelles de concombre par-dessus.'],10],
   ['midi','Poulet + haricots verts + quinoa',[['Filets de poulet','viande',120,'g'],['Haricots verts surgelés','surgele',200,'g'],['Quinoa','sale',50,'g (cru)'],['Huile d\'olive','sale',1,'c. à café',1],['Citron','fruits',0.5,'',1]],
     ['Rince le quinoa, mets-le dans 2 fois son volume d\'eau salée, cuis 12-15 min à couvert.','Cuis les haricots verts 10 min dans l\'eau bouillante (ou 6 min au micro-ondes avec un fond d\'eau).','Coupe le poulet en lanières et fais-le dorer 8-10 min dans la poêle avec l\'huile (plus du tout rose à l\'intérieur).','Sel, poivre, herbes, un filet de citron.','Dans l\'assiette : ½ haricots verts, ¼ poulet, ¼ quinoa.'],25],
   ['midi','Salade pois chiches, tomates, concombre, feta',[['Pois chiches en conserve','sale',120,'g (égouttés)'],['Tomates','fruits',1,''],['Concombre','fruits',0.5,''],['Feta','laitier',30,'g'],['Huile d\'olive','sale',1,'c. à café',1],['Citron','fruits',0.5,'',1]],
@@ -1784,10 +1789,24 @@ function recipeForm(r){ r=r||{slot:'soir',title:'',ings:'',steps:'',min:'',pers:
     <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button><button type="button" class="ghost" data-recclose="1">Annuler</button></span></form>`;
 }
 const inStock=name=>{ const w=shortName(name).toLowerCase().split(/\s+/)[0].replace(/s$/,''); return S.stock.find(s=>s.n>0&&s.text.toLowerCase().includes(w)); };
+/* Déjeuner : uniquement avec mon stock, en portions d'assiette équilibrée */
+function lunchFromStock(){
+  const ok=s=>availOf(s)>0&&!FG.sweet.test(s.text), pick=(re,not)=>{ const l=S.stock.filter(s=>ok(s)&&re.test(s.text)&&!(not&&not.test(s.text))); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
+  const pr=pick(FG.prot,/fromage|vache qui rit|feta|mozzarella/i)||pick(FG.prot), vg=pick(FG.veg,/purée(?![^+]*légume)/i), sc=pick(FG.whole)||pick(FG.starch,/biscotte|céréales/i);
+  const parts=[...new Set([pr,vg,sc].filter(Boolean))]; if(!parts.length) return null;
+  const egg=s=>/œuf|oeuf/i.test(s.text)&&!WEIGHT_U.includes(s.u), q={};
+  const hint=s=>{ if(s===pr){ if(egg(s)){ q[s.id]=2; return '2'; } if(!WEIGHT_U.includes(s.u)&&/burger|steak|filet|escalope|pavé|cuisse|dos|tranche/i.test(s.text)) return '1'; return '≈ 120 g'; }
+    if(s===vg) return '½ assiette';
+    if(/pain/i.test(s.text)) return '1 tranche'; if(/pomme|patate|grenaille/i.test(s.text)) return '≈ 150 g'; return '≈ 50 g cru'; };
+  return {text:parts.map(s=>`${shortName(s.text)} (${hint(s)})`).join(' + '),uses:parts.map(s=>s.id),q,stockOnly:true};
+}
 function healthIdea(slot){
-  // 1) avec le stock : protéine + légume + féculent (complet de préférence)
+  if(slot==='midi') return lunchFromStock();
+  // 1) avec le stock : protéine + légume (ou pain complet le matin) + féculent (complet de préférence)
   const ok=s=>availOf(s)>0, pick=re=>{ const l=S.stock.filter(s=>ok(s)&&re.test(s.text)); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
-  const pr=pick(FG.prot), vg=slot==='matin'?(pick(FG.fruit)||pick(FG.veg)):pick(FG.veg), st=pick(FG.whole)||pick(FG.starch);
+  if(slot==='matin'){ const e=pick(/œuf|oeuf/i), b=pick(/pain/i), c=pick(/fromage|emmental|comté|vache qui rit|camembert|raclette/i), v=pick(/tomate|concombre|radis|crudité/i);
+    const u=[e,b,c,v].filter(Boolean); if(u.length>=2) return {text:u.map(s=>shortName(s.text)).join(' + '),uses:u.map(s=>s.id),q:e&&!WEIGHT_U.includes(e.u)?{[e.id]:2}:{}}; }
+  const pr=pick(FG.prot), vg=slot==='matin'?pick(FG.veg):pick(FG.veg), st=pick(FG.whole)||pick(FG.starch);
   if(pr&&vg){ const u=[...new Set([pr,vg,st].filter(Boolean))]; return {text:u.map(s=>shortName(s.text)).join(' + '),uses:u.map(s=>s.id)}; }
   // 2) sinon : une idée de la liste, en priorité celle dont j'ai le plus d'ingrédients
   const ideas=HEALTH_IDEAS.filter(x=>x[0]===slot).map(x=>({x,have:ideaNeed(x).filter(([n])=>inStock(n)).length})).sort((a,b)=>b.have-a.have||Math.random()-.5);
@@ -1811,7 +1830,7 @@ function healthHtml(W){
       <p class="sub">⚠️ Ce sont des repères généraux, pas un avis médical. Pour un plan fait pour toi (traitement, analyses, allergies), parles-en à ton médecin ou à un·e diététicien·ne.</p>
     </div>
     <h3 class="evh">💡 Idées de repas</h3>
-    <p class="sub">Touche 📖 pour voir la recette : quantités (pour 1 personne, à ajuster) et étapes.</p>
+    <p class="sub">Touche 📖 pour voir la recette : quantités (pour 1 personne, à ajuster) et étapes. 🥐 Petits-déj salés. ☀️ Pour le déjeuner, 💡 dans le planning compose ton assiette <b>uniquement avec ton stock</b>.</p>
     ${HEALTH_IDEAS.map((x,i)=>{ const miss=ideaNeed(x).filter(([n])=>!inStock(n)), ref='h'+i; return `<div class="step"><span class="t" style="flex:1">${x[0]==='matin'?'🥐':x[0]==='midi'?'☀️':'🌙'} ${esc(x[1])} <span class="sub">· ${x[4]} min</span>${miss.length?`<br><span class="sub">Il te manque : ${miss.map(m=>esc(m[0])).join(', ')}</span>`:'<br><span class="sub">✅ Tu as tout dans ton stock</span>'}</span><button class="ghost ${recOpen===ref?'on':''}" data-recopen="${ref}" title="Voir la recette">📖</button>${miss.length?`<button class="ghost" data-hlbuy="${i}" title="Ajouter ce qui manque à ma liste de courses">🛒</button>`:''}</div>${recOpen===ref?recipeHtml(ref):''}`; }).join('')}
     <h3 class="evh">📒 Mes recettes <span class="chip">${S.recipes.length}</span></h3>
     ${S.recipes.map(r=>{ const ref='c:'+r.id; return `<div class="step"><span class="t" style="flex:1">${r.slot==='matin'?'🥐':r.slot==='midi'?'☀️':'🌙'} ${esc(r.title)}${r.min?` <span class="sub">· ${r.min} min</span>`:''}</span><button class="ghost" data-recopen="${ref}" title="Voir la recette">📖</button></div>${recOpen===ref?(recNew===r.id?recipeForm(r):recipeHtml(ref)):''}`; }).join('')||'<p class="sub">Ajoute tes plats à toi : ingrédients, quantités et étapes.</p>'}
@@ -1837,6 +1856,16 @@ function mealsHtml(){
     <p class="sub">Prévois tes repas avec ce que tu as déjà. 💡 propose une idée avec ton stock, ✓ quand c'est mangé (ça retire du stock).</p></div>
     ${healthHtml(W)}${breakfastHtml()}${days}${stockHtml()}`;
 }
+function bfReserveHtml(used){
+  const B=S.breakfast, m=bfMornings(), dl=B.until&&B.until>=todayKey();
+  const rows=used.map(s=>{ const per=takeOf(s,B,s.id), need=per*m, other=plannedOf(s.id)-need, left=s.n-other, miss=need-left;
+    return `<li>${per?`<b>${unitTxt(s.u,need)}</b>`:'<span class="sub">quantité ?</span>'} de ${esc(shortName(s.text))} <span class="sub">· tu en as ${unitTxt(s.u,s.n)}</span>${per&&miss>0?` <b class="negtxt">⚠️ il en manque ${unitTxt(s.u,miss)}</b>`:per?' ✅':''}</li>`; }).join('');
+  const short=used.some(s=>{ const per=takeOf(s,B,s.id); return per&&per*m>s.n-(plannedOf(s.id)-per*m); });
+  return `<div class="bfres"><label class="sub" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">🔒 Garder pour mes petits-déj jusqu'au <input type="date" data-bfuntil="1" value="${esc(B.until||'')}" min="${todayKey()}" style="width:auto"></label>
+    <p class="sub" style="margin:6px 0">${dl?`<b>${m} petit${m>1?'s':''}-déj</b> d'ici le ${new Date(B.until+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}`:`Sans date : je garde de quoi faire <b>${m} petit${m>1?'s':''}-déj</b> (7 jours)`}. Ce stock est réservé : les déjeuners et dîners ne le prennent pas.</p>
+    ${used.length?`<ul class="ings">${rows}</ul>`:''}
+    ${short?'<button class="ghost" data-bfbuy="1">🛒 Ajouter ce qui manque à ma liste</button>':''}</div>`;
+}
 function breakfastHtml(){
   bfLink(); const B=S.breakfast;
   const used=(B.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean);
@@ -1844,6 +1873,7 @@ function breakfastHtml(){
     <p style="margin:4px 0"><b>${esc(B.text||'—')}</b></p>
     ${used.length?`<span class="chips">${used.map(s=>`<span class="chip">🥫 ${useQ(B,s.id)} × ${esc(shortName(s.text))}</span>`).join('')}</span>`:'<p class="sub">Pas encore relié à ton stock : touche ✏️ pour dire ce qu\'il utilise (ex. 2 œufs).</p>'}
     <p class="sub">Mis tout seul chaque matin. ✓ quand c'est mangé : ça retire du stock. ✏️ sur un jour pour le changer juste ce jour-là.</p>
+    ${B.on?bfReserveHtml(used):''}
     <div class="row" style="justify-content:flex-start"><button data-bfedit="1">✏️ Modifier</button><button class="ghost" data-bfon="1">${B.on?'⏸️ Mettre en pause':'▶️ Remettre chaque matin'}</button></div></div>`;
   const opts=S.stock.filter(s=>s.n>0||(B.uses||[]).includes(s.id));
   return `<div class="card routine"><h2>🥐 Mon petit-déj habituel</h2><form data-bfform="1" class="promoform">
@@ -1957,14 +1987,21 @@ $('#tab-shop').addEventListener('click',e=>{
 Pense à mettre le prix avec ✏️.`:'Tout est déjà dans ta liste. 🙂'); return; }
   if(d.bfedit){ bfOpen=true; renderShop(); return; }
   if(d.bfclose){ bfOpen=false; renderShop(); return; }
+  if(d.bfbuy){ const B=S.breakfast, m=bfMornings(), add=[];
+    (B.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean).forEach(s=>{ const per=takeOf(s,B,s.id), miss=per*m-(s.n-(plannedOf(s.id)-per*m));
+      if(per&&miss>0&&!S.shop.items.some(i=>i.m===S.shop.cur&&!i.done&&i.text===s.text)){ const old=[...S.shop.items].reverse().find(i=>i.text===s.text);
+        S.shop.items.push({id:uid(),cat:s.cat,text:s.text,qty:1,price:old?old.price:0,done:false,m:S.shop.cur,store:old?old.store:SHOP_DEF_STORE}); add.push(`${shortName(s.text)} (il en manque ${unitTxt(s.u,miss)})`); } });
+    save(); pop('🛒'); alert(add.length?`Ajouté à ta liste de ${monthLabel(S.shop.cur).toLowerCase()} :\n• ${add.join('\n• ')}\nAjuste la quantité avec ✏️.`:'C\'est déjà dans ta liste. 🙂'); return; }
   if(d.bfon){ S.breakfast.on=!S.breakfast.on; save(); renderShop(); return; }
   if(d.mclear){ const w=W(), k=d.mclear; // petit-déj habituel : « Vider » = pas de petit-déj ce jour-là ; sinon on revient à l'habituel
     if(/-matin$/.test(k)&&S.breakfast.on&&!w[k]) w[k]={text:'',uses:[],q:{},eaten:false}; else delete w[k];
     mealOpen=null; save(); renderShop(); return; }
-  if(d.midea){ const idea=S.health.on?healthIdea(d.midea.split('-')[1]):mealIdea(); if(!idea) return alert('Ton stock est vide (ou tout est déjà prévu). Coche tes courses puis « Retirer les articles pris », ou ajoute ce que tu as dans « Mon stock ».');
+  if(d.midea){ const sl0=d.midea.split('-')[1], idea=S.health.on||sl0==='midi'?healthIdea(sl0):mealIdea();
+    if(!idea&&sl0==='midi') return alert('Ton stock est vide pour un déjeuner. Ajoute ce que tu as dans « Mon stock » (ou coche tes courses puis « Retirer les articles pris »).');
+    if(!idea) return alert('Ton stock est vide (ou tout est déjà prévu). Coche tes courses puis « Retirer les articles pris », ou ajoute ce que tu as dans « Mon stock ».');
     W()[d.midea]=idea; save(); renderShop(); return; }
   if(d.meaten){ let sl=W()[d.meaten]; if(!sl&&/-matin$/.test(d.meaten)&&S.breakfast.on) sl=W()[d.meaten]=bfSlot(); if(!sl) return; sl.eaten=!sl.eaten;
-    (sl.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s&&perMeal(s)) s.n=Math.max(0,s.n+(sl.eaten?-1:1)*useQ(sl,id)); });
+    (sl.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s) s.n=Math.max(0,Math.round((s.n+(sl.eaten?-1:1)*takeOf(s,sl,id))*100)/100); });
     if(sl.eaten) pop('😋'); save(); renderShop(); return; }
   /* stock */
   if(d.stq){ const s=S.stock.find(x=>x.id===d.id); if(s){ s.n=Math.max(0,Math.round((s.n+(+d.stq))*100)/100); save(); renderShop(); } return; }
@@ -1993,6 +2030,7 @@ Pense à mettre le prix avec ✏️.`:'Tout est déjà dans ta liste. 🙂'); re
 });
 $('#tab-shop').addEventListener('change',e=>{
   const t=e.target, d=t.dataset;
+  if(d.bfuntil){ S.breakfast.until=t.value||null; save(); renderShop(); return; }
   if(d.stu){ const s=S.stock.find(x=>x.id===d.stu); if(s){ s.u=t.value; save(); renderShop(); } return; }
   if(d.evdate){ findEv(d.evdate).date=t.value; save(); renderShop(); return; }
   if(d.evbudget){ const v=parseAmt(t.value); if(Number.isNaN(v)) return alert('Budget invalide (exemple : 80 ou 80,50).'); findEv(d.evbudget).budget=v; save(); renderShop(); return; }
@@ -2003,7 +2041,7 @@ $('#tab-shop').addEventListener('submit',e=>{
   const f=e.target, d=f.dataset, v=k=>{ const i=f.querySelector(`[data-k=${k}]`); return i?i.value.trim():''; };
   if(d.meal){ e.preventDefault(); const uses=[...f.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value), text=v('text');
     const W=S.meals[S.shop.week]||(S.meals[S.shop.week]={}), old=W[d.meal];
-    if(old&&old.eaten) (old.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s&&perMeal(s)) s.n+=useQ(old,id); }); // on rouvre un repas mangé : on remet le stock
+    if(old&&old.eaten) (old.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s) s.n=Math.round((s.n+takeOf(s,old,id))*100)/100; }); // on rouvre un repas mangé : on remet le stock
     const base=old||(/-matin$/.test(d.meal)&&S.breakfast.on?bfSlot():{}), q={}; uses.forEach(id=>{ if(base.q&&base.q[id]) q[id]=base.q[id]; });
     if(!text&&!uses.length) delete W[d.meal]; else W[d.meal]={text:text||uses.map(id=>shortName((S.stock.find(s=>s.id===id)||{}).text||'')).join(' + '),uses,q,eaten:false};
     mealOpen=null; save(); renderShop(); return; }
