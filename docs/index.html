@@ -185,6 +185,10 @@ label.chip.pick input{width:18px;height:18px;min-height:0;padding:0;margin:0;fle
 .bal .chip{font-size:.72rem;padding:1px 7px;cursor:pointer;min-height:26px}
 .baltip{display:block;margin-top:2px}
 .pastday{opacity:.7}
+.ideapick{width:100%;display:flex;flex-direction:column;gap:6px;background:var(--soft);border-radius:14px;padding:10px;margin-top:6px}
+.ideaopt{display:flex;align-items:center;gap:10px;width:100%;border:2px solid var(--line);border-radius:14px;padding:8px 10px;background:var(--card);color:var(--ink);font-weight:400}
+.ideaopt:hover{border-color:var(--pink-deep)}
+.ideanum{flex:none;width:26px;height:26px;border-radius:50%;background:var(--pink-deep);color:#fff;display:grid;place-items:center;font-weight:800}
 .stsearch{position:relative;margin:6px 0 4px}
 .stsearch input{width:100%;padding-right:44px}
 .stsearch button{position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:4px 10px}
@@ -1828,6 +1832,23 @@ function healthIdea(slot){
   const uses=ideaNeed(c).map(([n])=>inStock(n)).filter(Boolean).map(s=>s.id);
   return {text:c[1],uses:[...new Set(uses)]};
 }
+/* 💡 : plusieurs idées différentes, je choisis */
+let ideaPick=null; // {wk,key,list}
+function ideaList(slot,n){
+  const gen=()=>S.health.on||slot==='midi'?healthIdea(slot):mealIdea(), out=[], seen=new Set();
+  for(let i=0;i<40&&out.length<n;i++){ const x=gen(); if(!x) break; const sig=[...(x.uses||[])].sort().join(',')||x.text; if(seen.has(sig)) continue; seen.add(sig); out.push(x); }
+  return out;
+}
+function ideaPickHtml(slot){
+  const L=ideaPick.list;
+  return `<div class="ideapick"><b class="sub">💡 Choisis ton repas${slot==='midi'?' (avec ton stock)':''} :</b>
+    ${L.map((x,i)=>{ const used=(x.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean);
+      const name=used.length?used.map(s=>shortName(s.text)).join(' + '):x.text;
+      const det=used.map(s=>`${esc(shortName(s.text))} : ${esc(recoQty(s).txt.replace(/ · .*/,''))}`).join(' · ');
+      return `<button type="button" class="ideaopt" data-ipick="${i}"><span class="ideanum">${i+1}</span><span style="flex:1;min-width:0;text-align:left"><b>${esc(name)}</b>${det?`<br><span class="sub">${det}</span>`:''}${S.health.on&&balanceOf(x,slot).ok?' <span class="sub">· ⚖️ équilibré</span>':''}</span></button>`; }).join('')}
+    ${L.length<2?'<p class="sub">Je n\'ai pas trouvé d\'autre idée avec ton stock.</p>':''}
+    <div class="row" style="justify-content:flex-start;margin:4px 0 0"><button type="button" class="ghost" data-imore="1">🔄 Autres idées</button><button type="button" class="ghost" data-iclose="1">Annuler</button></div></div>`;
+}
 function weekBalance(W){ let ok=0,n=0; Object.entries(W).forEach(([k,sl])=>{ if(!(sl.text||(sl.uses||[]).length)) return; n++; if(balanceOf(sl,k.split('-')[1]).ok) ok++; }); return {ok,n}; }
 function healthHtml(W){
   const H=S.health;
@@ -1880,10 +1901,10 @@ function mealsHtml(){
         const chips=used.map(s=>`<span class="chip">🥫 ${esc(qtyLabel(s,takeOf(s,sl,s.id)))} ${esc(shortName(s.text))}</span>`).join(' ');
         return `<div class="meal ${sl.eaten?'eaten':''}"><span class="mlabel">${l}</span>
           <span class="mtext">${has?`${esc(sl.text||'')}${chips?`<span class="chips" style="margin:4px 0 0">${chips}</span>`:''}${S.health.on?balanceHtml(sl,k,key):''}`:'<span class="sub">—</span>'}</span>
-          <span class="mbtn">${has?`<button class="ghost" data-meaten="${key}" title="${sl.eaten?(sl.auto?'Retiré du stock tout seul (jour passé). Touche si tu ne l\'as pas mangé : remet le stock':'Pas encore mangé : remet le stock'):'Mangé : retire du stock'}">${sl.eaten?'↺':'✓'}</button>`:`<button class="ghost" data-midea="${key}" title="Une idée avec mon stock">💡</button>`}
+          <span class="mbtn">${has?`<button class="ghost" data-meaten="${key}" title="${sl.eaten?(sl.auto?'Retiré du stock tout seul (jour passé). Touche si tu ne l\'as pas mangé : remet le stock':'Pas encore mangé : remet le stock'):'Mangé : retire du stock'}">${sl.eaten?'↺':'✓'}</button>`:''}${sl.eaten?'':`<button class="ghost ${ideaPick&&ideaPick.wk===wk&&ideaPick.key===key?'on':''}" data-midea="${key}" title="Des idées avec mon stock : je choisis">💡</button>`}
           ${(()=>{ const rf=has&&recipeRefFor(sl.text); return rf?`<button class="ghost" data-recopen="${rf}|${wk}|${key}" title="Voir la recette">📖</button>`:''; })()}
           <button class="ghost" data-medit="${key}" aria-label="Modifier ce repas">✏️</button></span>
-          ${open?mealForm(key,sl,k==='matin'&&!!W[key]&&S.breakfast.on):''}${recOpen&&recOpen.endsWith('|'+wk+'|'+key)?recipeHtml(recOpen.split('|')[0]):''}</div>`; }).join('')}</div>`; }).join('');
+          ${ideaPick&&ideaPick.wk===wk&&ideaPick.key===key?ideaPickHtml(k):''}${open?mealForm(key,sl,k==='matin'&&!!W[key]&&S.breakfast.on):''}${recOpen&&recOpen.endsWith('|'+wk+'|'+key)?recipeHtml(recOpen.split('|')[0]):''}</div>`; }).join('')}</div>`; }).join('');
   return `<div class="card"><div class="row monthnav" style="margin:0"><button class="ghost" data-mwk="-7" aria-label="Semaine précédente">◀</button><b>🍽️ Semaine du ${new Date(wk+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}</b><button class="ghost" data-mwk="7" aria-label="Semaine suivante">▶</button></div>
     <p class="sub">Prévois tes repas avec ce que tu as déjà. 💡 propose une idée avec ton stock, ✓ quand c'est mangé (ça retire du stock).</p></div>
     ${healthHtml(W)}${breakfastHtml()}${pastN?`<div class="row" style="justify-content:flex-start;margin:0 0 8px"><button class="ghost" data-showpast="1">${showPast?'🙈 Cacher':'👁 Voir'} les jours passés (${pastN})</button><span class="sub">Les repas des jours passés sont retirés du stock tout seuls.</span></div>`:''}${days}${stockHtml()}`;
@@ -2084,10 +2105,15 @@ Pense à mettre le prix avec ✏️.`:'Tout est déjà dans ta liste. 🙂'); re
   if(d.mclear){ const w=W(), k=d.mclear; // petit-déj habituel : « Vider » = pas de petit-déj ce jour-là ; sinon on revient à l'habituel
     if(/-matin$/.test(k)&&S.breakfast.on&&!w[k]) w[k]={text:'',uses:[],q:{},eaten:false}; else delete w[k];
     mealOpen=null; save(); renderShop(); return; }
-  if(d.midea){ const sl0=d.midea.split('-')[1], idea=S.health.on||sl0==='midi'?healthIdea(sl0):mealIdea();
+  if(d.midea){ const sl0=d.midea.split('-')[1], wk0=S.shop.week, list=ideaList(sl0,4), idea=list[0];
+    if(ideaPick&&ideaPick.wk===wk0&&ideaPick.key===d.midea){ ideaPick=null; renderShop(); return; }
     if(!idea&&sl0==='midi') return alert('Ton stock est vide pour un déjeuner. Ajoute ce que tu as dans « Mon stock » (ou coche tes courses puis « Retirer les articles pris »).');
     if(!idea) return alert('Ton stock est vide (ou tout est déjà prévu). Coche tes courses puis « Retirer les articles pris », ou ajoute ce que tu as dans « Mon stock ».');
-    W()[d.midea]=idea; save(); renderShop(); return; }
+    ideaPick={wk:wk0,key:d.midea,list}; mealOpen=null; renderShop(); return; }
+  if(d.ipick!=null&&ideaPick){ W()[ideaPick.key]=ideaPick.list[+d.ipick]; ideaPick=null; save(); renderShop(); return; }
+  if(d.imore&&ideaPick){ const sl0=ideaPick.key.split('-')[1], old=new Set(ideaPick.list.map(x=>[...(x.uses||[])].sort().join(',')||x.text));
+    const fresh=ideaList(sl0,12).filter(x=>!old.has([...(x.uses||[])].sort().join(',')||x.text)); ideaPick.list=(fresh.length?fresh:ideaList(sl0,4)).slice(0,4); renderShop(); return; }
+  if(d.iclose){ ideaPick=null; renderShop(); return; }
   if(d.meaten){ let sl=W()[d.meaten]; if(!sl&&/-matin$/.test(d.meaten)&&S.breakfast.on) sl=W()[d.meaten]=bfSlot(); if(!sl) return; sl.eaten=!sl.eaten;
     (sl.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s) s.n=Math.max(0,Math.round((s.n+(sl.eaten?-1:1)*takeOf(s,sl,id))*100)/100); });
     if(sl.eaten) pop('😋'); save(); renderShop(); return; }
