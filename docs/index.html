@@ -1811,9 +1811,14 @@ function recipeForm(r){ r=r||{slot:'soir',title:'',ings:'',steps:'',min:'',pers:
 }
 const inStock=name=>{ const w=shortName(name).toLowerCase().split(/\s+/)[0].replace(/s$/,''); return S.stock.find(s=>s.n>0&&s.text.toLowerCase().includes(w)); };
 /* Déjeuner : uniquement avec mon stock, en portions d'assiette équilibrée */
+/* Pas un plat : sauces et condiments (pour le goût), ingrédients de pâtisserie / collation (flocons d'avoine, farine…) */
+const NOT_MEAL=/sauce|ketchup|moutarde|mayo|pesto|coulis|concentre|vinaigrette|huile|bouillon|cube|epice|herbes|poivre|\bsel\b|flocon|avoine|farine|maizena|chapelure|levure|sucre|biscotte|cereale|muesli|granola|pancake|confiture|miel|chocolat|biscuit|gateau|compote/;
+const SOUP=/soupe|veloute|potage|gaspacho/;
+const isNotMeal=s=>NOT_MEAL.test(noAcc(String(s.text).toLowerCase()));
+const isSoup=s=>SOUP.test(noAcc(String(s.text).toLowerCase()));
 function lunchFromStock(){
-  const ok=s=>availOf(s)>0&&!FG.sweet.test(s.text), pick=(re,not)=>{ const l=S.stock.filter(s=>ok(s)&&re.test(s.text)&&!(not&&not.test(s.text))); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
-  const pr=pick(FG.prot,/fromage|vache qui rit|feta|mozzarella/i)||pick(FG.prot), vg=pick(FG.veg,/purée(?![^+]*légume)/i), sc=pick(FG.whole)||pick(FG.starch,/biscotte|céréales/i);
+  const ok=s=>availOf(s)>0&&!FG.sweet.test(s.text)&&!isNotMeal(s), pick=(re,not,soupOk)=>{ const l=S.stock.filter(s=>ok(s)&&re.test(noAcc(s.text))&&!(not&&not.test(noAcc(s.text)))&&(soupOk||!isSoup(s))); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
+  const pr=pick(FGN.prot,/fromage|vache qui rit|feta|mozzarella/i)||pick(FGN.prot), vg=pick(FGN.veg,/puree(?![^+]*legume)/i,!pr||!isSoup(pr)), sc=pick(FGN.whole)||pick(FGN.starch);
   const parts=[...new Set([pr,vg,sc].filter(Boolean))]; if(!parts.length) return null;
   const q={}, hint=s=>{ const r=recoQty(s); q[s.id]=r.n; return r.txt; };
   return {text:parts.map(s=>`${shortName(s.text)} (${hint(s)})`).join(' + '),uses:parts.map(s=>s.id),q,stockOnly:true};
@@ -1824,7 +1829,8 @@ function healthIdea(slot){
   const ok=s=>availOf(s)>0, pick=re=>{ const l=S.stock.filter(s=>ok(s)&&re.test(s.text)); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
   if(slot==='matin'){ const e=pick(/œuf|oeuf/i), b=pick(/pain/i), c=pick(/fromage|emmental|comté|vache qui rit|camembert|raclette/i), v=pick(/tomate|concombre|radis|crudité/i);
     const u=[e,b,c,v].filter(Boolean); if(u.length>=2) return {text:u.map(s=>`${shortName(s.text)} (${recoQty(s).txt})`).join(' + '),uses:u.map(s=>s.id),q:Object.fromEntries(u.map(s=>[s.id,recoQty(s).n]))}; }
-  const pr=pick(FG.prot), vg=slot==='matin'?pick(FG.veg):pick(FG.veg), st=pick(FG.whole)||pick(FG.starch);
+  const ok2=s=>ok(s)&&!isNotMeal(s), pick2=(re,soupOk)=>{ const l=S.stock.filter(s=>ok2(s)&&re.test(noAcc(s.text))&&(soupOk||!isSoup(s))); return l.length?l[Math.floor(Math.random()*l.length)]:null; };
+  const pr=pick2(FGN.prot), vg=pick2(FGN.veg,true), st=pick2(FGN.whole)||pick2(FGN.starch);
   if(pr&&vg){ const u=[...new Set([pr,vg,st].filter(Boolean))]; return {text:u.map(s=>shortName(s.text)).join(' + '),uses:u.map(s=>s.id)}; }
   // 2) sinon : une idée de la liste, en priorité celle dont j'ai le plus d'ingrédients
   const ideas=HEALTH_IDEAS.filter(x=>x[0]===slot).map(x=>({x,have:ideaNeed(x).filter(([n])=>inStock(n)).length})).sort((a,b)=>b.have-a.have||Math.random()-.5);
@@ -1947,6 +1953,9 @@ function recoQty(s){
   else if(/fromage blanc|yaourt|skyr|compote/.test(t)){ cnt=1; g=150; txt='1 pot (≈ 150 g)'; }
   else if(/fromage|emmental|comte|feta|mozza|raclette|camembert|chevre/.test(t)){ g=30; txt='30 g'; }
   else if(/jambon/.test(t)){ cnt=2; g=80; txt='2 tranches'; }
+  else if(/sauce|ketchup|moutarde|mayo|pesto|coulis|vinaigrette|concentre/.test(t)){ g=40; txt='2 c. à soupe (≈ 40 g), pour le goût'; }
+  else if(/huile/.test(t)){ g=10; txt='1 c. à soupe'; }
+  else if(/flocon|avoine/.test(t)){ g=40; txt='≈ 40 g (collation, pancakes…)'; }
   else if(/soupe|veloute/.test(t)){ g=300; txt='1 bol (300 mL)'; }
   else if(/pain|baguette/.test(t)){ g=40; txt=/petit/.test(t)?'1 petit pain':'1 tranche (≈ 40 g)'; }
   else if(/pomme de terre|patate|grenaille/.test(t)){ g=150; txt='≈ 150 g'; }
