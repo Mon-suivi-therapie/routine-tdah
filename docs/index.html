@@ -1822,7 +1822,10 @@ const isSoup=s=>SOUP.test(noAcc(String(s.text).toLowerCase()));
 /* Repas complet comme dans la vraie vie : entrée (crudités ou potage), plat (protéine + féculent + légume
    d'accompagnement + un peu de sauce pour le goût), puis fromage OU dessert. Uniquement avec mon stock. */
 const NT=s=>noAcc(String(s.text));
-const SAUCE=/sauce|ketchup|moutarde|mayo|pesto|vinaigrette|creme fraiche|bolognaise|carbonara|coulis/;
+const SAUCE=/sauce|ketchup|moutarde|mayo|pesto|vinaigrette|creme fraiche|bolognaise|carbonara|coulis|beurre/;
+const FISH=/poisson|colin|cabillaud|saumon|thon|merlu|lieu|sardine|maquereau|truite|crevette|fruits de mer|dorade|\bbar\b|sole|limande|merlan|hareng|surimi|moule/;
+const FISH_SAUCE=/beurre blanc|hollandaise|oseille|aneth|sauce citron|tartare/;
+const PASTA_SAUCE=/tomate|bolognaise|carbonara|creme|pesto|arrabbiata|basilic/;
 const ENTREE=/salade|crudite|rapee|concombre|radis|betterave|celeri|tomate cerise|taboule/;
 const VEGX=/legume|butternut|potiron|courge|carotte|brocoli|epinard|haricot vert|ratatouille|courgette|chou|poireau|petits? pois|champignon|aubergine|poivron/;
 const SALAD_SAUCE=/crudite|vinaigrette/;
@@ -1859,7 +1862,10 @@ function mealFromStock(slot){
   // sauce pour le goût : tomate avec les pâtes de préférence
   const salad=[ent,side].find(x=>x&&has(x,ENTREE)), sSauce=salad?rnd(L(SALAD_SAUCE)):null;
   const sauces=L(SAUCE).filter(x=>!has(x,SALAD_SAUCE)), pasta=sc&&has(sc,/pate|spaghetti|tagliatelle|penne|macaroni|coquillette/);
-  const sauce=sauces.length&&(pasta||Math.random()<.4)?(pasta&&rnd(sauces.filter(x=>has(x,/tomate|bolognaise|carbonara|creme/)))||rnd(sauces)):null;
+  // sauce pas obligatoire ; sauces pour poisson (beurre blanc…) seulement avec du poisson ; sauces pour pâtes avec des pâtes
+  const fish=pr&&has(pr,FISH), fits=x=>has(x,FISH_SAUCE)?fish:has(x,PASTA_SAUCE)&&!has(x,/creme fraiche|tomate/)?pasta:true;
+  const okS=sauces.filter(fits), pref=fish?okS.filter(x=>has(x,FISH_SAUCE)||has(x,/beurre/)):pasta?okS.filter(x=>has(x,PASTA_SAUCE)||has(x,/beurre/)):okS;
+  const sauce=okS.length&&Math.random()<(pasta?.55:.35)?(rnd(pref)||rnd(okS)):null;
   // fin de repas : fromage OU dessert léger (les desserts sucrés seulement s'il n'y a rien d'autre, et pas tous les jours)
   const okD=L(DESSERT_OK).filter(x=>x!==pr), treat=L(DESSERT_TREAT), chz=L(CHEESE).filter(x=>x!==pr);
   const hab=endHab(slot)?endHabItems(slot):{out:[],miss:[]};
@@ -1904,7 +1910,7 @@ function ideaPickHtml(slot){
   const L=ideaPick.list;
   return `<div class="ideapick"><b class="sub">💡 Choisis ton repas${slot==='midi'?' (avec ton stock)':''} :</b>
     ${L.map((x,i)=>{ const used=(x.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean);
-      const qt=s=>{ const r=recoQty(s); const t=r.txt.replace(/ · .*/,''); return x.q&&x.q[s.id]<r.n?'petite part : la moitié de '+t:t; };
+      const qt=s=>{ const r=recoQty(s); const t=r.txt.replace(/ · .*/,''); return (x.q&&x.q[s.id]<r.n?'petite part : la moitié de '+t:t)+(SAUCE.test(NT(s))?', facultatif':''); };
       const body=x.courses?x.courses.map(([l,ids])=>{ const a=ids.map(id=>S.stock.find(s=>s.id===id)).filter(Boolean);
           return `<span class="ideacourse"><b>${esc(l)} :</b> ${a.map(s=>`${esc(shortName(s.text))} <span class="sub">(${esc(qt(s))})</span>`).join(' + ')}</span>`; }).join('')
         :`<b>${esc(used.length?used.map(s=>shortName(s.text)).join(' + '):x.text)}</b>${used.length?`<br><span class="sub">${used.map(s=>`${esc(shortName(s.text))} : ${esc(qt(s))}`).join(' · ')}</span>`:''}`;
@@ -2009,6 +2015,8 @@ function defPkg(t,u){
   if(/puree|surgele|poelee|ratatouille|legume/.test(t)) return u==='boite'?400:1000;
   if(/sauce|coulis|ketchup|mayo|moutarde|vinaigrette/.test(t)) return 400;
   if(/creme fraiche/.test(t)) return 200;
+  if(/beurre blanc/.test(t)) return 200;
+  if(/beurre/.test(t)) return 250;
   if(/\bpain|brioche/.test(t)) return 500;
   if(/lardon/.test(t)) return 200;
   if(/fromage|emmental|comte|mozza/.test(t)) return 200;
@@ -2025,7 +2033,8 @@ function recoQty(s){
   else if(/fromage blanc|yaourt|skyr|compote/.test(t)){ cnt=1; g=150; txt='1 pot (≈ 150 g)'; }
   else if(/fromage|emmental|comte|feta|mozza|raclette|camembert|chevre/.test(t)){ g=30; txt='30 g'; }
   else if(/jambon/.test(t)){ cnt=2; g=80; txt='2 tranches'; }
-  else if(/sauce|ketchup|moutarde|mayo|pesto|coulis|vinaigrette|concentre|creme fraiche/.test(t)){ g=40; txt='2 c. à soupe (≈ 40 g), pour le goût'; }
+  else if(/beurre(?! blanc)(?! de cacahuete)/.test(t)){ g=10; txt='1 noisette (≈ 10 g)'; }
+  else if(/sauce|ketchup|moutarde|mayo|pesto|coulis|vinaigrette|concentre|creme fraiche|beurre blanc/.test(t)){ g=40; txt='2 c. à soupe (≈ 40 g), pour le goût'; }
   else if(/huile/.test(t)){ g=10; txt='1 c. à soupe'; }
   else if(/flocon|avoine/.test(t)){ g=40; txt='≈ 40 g (collation, pancakes…)'; }
   else if(/lardon/.test(t)){ g=50; txt='≈ 50 g'; }
@@ -2043,6 +2052,7 @@ function recoQty(s){
   if(u==='g') n=g||100; else if(u==='kg') n=(g||100)/1000; else if(u==='mL') n=g||200; else if(u==='cL') n=(g||200)/10; else if(u==='L') n=(g||200)/1000;
   else if(['paquet','boite','sachet','bouteille','brique','barquette','pot'].includes(u)&&g&&cnt===1){ const P=pkgGrams(s.text)||defPkg(t,u); n=P?Math.max(0.05,Math.round(g/P*100)/100):1; }
   else n=cnt;
+  if(/beurre(?! blanc)/.test(t)&&!WEIGHT_U.includes(u)&&n>=1) n=0.04; // une plaquette de 250 g : 10 g = 0,04
   return {n:Math.round(n*100)/100,txt};
 }
 function mealForm(key,sl,own){
