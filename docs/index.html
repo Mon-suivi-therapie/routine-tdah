@@ -1874,7 +1874,7 @@ function mealFromStock(slot){
   // entrée : crudités ou UN potage
   const soups=S.stock.filter(s=>meal(s)&&isSoup(s)&&s!==pr), crus=S.stock.filter(s=>meal(s)&&has(s,ENTREE)&&s!==pr&&!isMeat(s));
   const soupP=slot==='soir'?.65:.1; // la soupe : plutôt le soir
-  const ent=Math.random()<.7?(soups.length&&Math.random()<soupP?rnd(soups):rnd(crus)||(slot==='soir'?rnd(soups):null)):null;
+  const ent=ideaForce&&slot==='soir'?ideaForce:Math.random()<.7?(soups.length&&Math.random()<soupP?rnd(soups):rnd(crus)||(slot==='soir'?rnd(soups):null)):null;
   // légume d'accompagnement (purée butternut, haricots, ratatouille…) : pas de 2e soupe, pas la même chose que l'entrée
   const isVeg=s=>has(s,FGN.veg)||has(s,VEGX);
   let side=rnd(S.stock.filter(s=>meal(s)&&isVeg(s)&&!isSoup(s)&&!has(s,ENTREE)&&s!==pr&&s!==sc&&!isMeat(s)));
@@ -1922,6 +1922,24 @@ function healthIdea(slot){
   const uses=ideaNeed(c).map(([n])=>inStock(n)).filter(Boolean).map(s=>s.id);
   return {text:c[1],uses:[...new Set(uses)]};
 }
+/* Soupe du soir : une brique fait plusieurs bols, on la remet les 2 soirs suivants (en entrée) */
+function carrySoup(wk,key){
+  const [i,slot]=String(key).split('-'); if(slot!=='soir') return 0;
+  const sl=(S.meals[wk]||{})[key]; if(!sl||sl.carry) return 0;
+  const soup=(sl.uses||[]).map(id=>S.stock.find(s=>s.id===id)).find(s=>s&&isSoup(s));
+  let name=soup&&shortName(soup.text);
+  if(!name){ name=String(sl.text||'').split(/[·+,]/).map(x=>x.replace(/^\s*(entrée|plat|fin)\s*:\s*/i,'').trim()).find(x=>SOUP.test(noAcc(x))); if(!name) return 0; }
+  let n=0;
+  for(let k=1;k<=2;k++){
+    const dt=new Date(addDays(wk,+i+k)+'T12:00:00'), w2=mondayOf(dt), k2=((dt.getDay()+6)%7)+'-soir', W2=S.meals[w2]||(S.meals[w2]={}), t=W2[k2];
+    if(t&&(t.eaten||SOUP.test(noAcc(t.text||''))||(soup&&(t.uses||[]).includes(soup.id)))) continue;
+    const q=soup?{[soup.id]:takeOf(soup,sl,soup.id)}:{};
+    if(!t) W2[k2]={text:'Entrée : '+name,uses:soup?[soup.id]:[],q,eaten:false,carry:true};
+    else { t.text='Entrée : '+name+' · '+(t.text||''); t.uses=[...(t.uses||[]),...(soup?[soup.id]:[])]; t.q={...(t.q||{}),...q}; t.carry=true; }
+    n++; }
+  return n;
+}
+let ideaForce=null; // la soupe déjà prévue ce soir-là reste l'entrée des idées
 /* 💡 : plusieurs idées différentes, je choisis */
 let ideaPick=null; // {wk,key,list}
 /* Ce que j'ai mangé la veille (midi + soir) et à l'autre repas du jour : à ne pas reproposer tout de suite */
@@ -1938,6 +1956,11 @@ function recentIds(key){
   return {ids,words};
 }
 function ideaList(slot,n,key){
+  const cur=key&&(S.meals[S.shop.week]||{})[key];
+  ideaForce=cur&&cur.carry?(cur.uses||[]).map(id=>S.stock.find(s=>s.id===id)).find(s=>s&&isSoup(s))||null:null;
+  try{ return ideaList0(slot,n,key); } finally { ideaForce=null; }
+}
+function ideaList0(slot,n,key){
   const gen=()=>S.health.on||slot==='midi'?healthIdea(slot):mealIdea(), all=[], seen=new Set();
   for(let i=0;i<60&&all.length<n*4;i++){ const x=gen(); if(!x) break; const sig=[...(x.uses||[])].sort().join(',')||x.text; if(seen.has(sig)) continue; seen.add(sig); all.push(x); }
   if(!key) return all.slice(0,n);
@@ -2251,7 +2274,9 @@ Pense à mettre le prix avec ✏️.`:'Tout est déjà dans ta liste. 🙂'); re
     if(!idea&&sl0==='midi') return alert('Ton stock est vide pour un déjeuner. Ajoute ce que tu as dans « Mon stock » (ou coche tes courses puis « Retirer les articles pris »).');
     if(!idea) return alert('Ton stock est vide (ou tout est déjà prévu). Coche tes courses puis « Retirer les articles pris », ou ajoute ce que tu as dans « Mon stock ».');
     ideaPick={wk:wk0,key:d.midea,list}; mealOpen=null; renderShop(); return; }
-  if(d.ipick!=null&&ideaPick){ W()[ideaPick.key]=ideaPick.list[+d.ipick]; ideaPick=null; save(); renderShop(); return; }
+  if(d.ipick!=null&&ideaPick){ const k=ideaPick.key, cur=W()[k], pick={...ideaPick.list[+d.ipick]};
+    if(cur&&cur.carry&&(pick.uses||[]).some(id=>(cur.uses||[]).includes(id))) pick.carry=true;
+    W()[k]=pick; ideaPick=null; const nc=carrySoup(S.shop.week,k); save(); renderShop(); if(nc) pop('🥣'); return; }
   if(d.imore&&ideaPick){ const sl0=ideaPick.key.split('-')[1], old=new Set(ideaPick.list.map(x=>[...(x.uses||[])].sort().join(',')||x.text));
     const fresh=ideaList(sl0,12,ideaPick.key).filter(x=>!old.has([...(x.uses||[])].sort().join(',')||x.text)); ideaPick.list=(fresh.length?fresh:ideaList(sl0,4,ideaPick.key)).slice(0,4); renderShop(); return; }
   if(d.iclose){ ideaPick=null; renderShop(); return; }
@@ -2303,8 +2328,9 @@ $('#tab-shop').addEventListener('submit',e=>{
     if(old&&old.eaten) (old.uses||[]).forEach(id=>{ const s=S.stock.find(x=>x.id===id); if(s) s.n=Math.round((s.n+takeOf(s,old,id))*100)/100; }); // on rouvre un repas mangé : on remet le stock
     const base=old||(/-matin$/.test(d.meal)&&S.breakfast.on?bfSlot():{}), q={}; uses.forEach(id=>{ const inp=f.querySelector(`[data-mq="${id}"]`), n=inp?parseFloat(String(inp.value).replace(',','.')):NaN;
       if(n>0) q[id]=Math.round(n*100)/100; else if(base.q&&base.q[id]) q[id]=base.q[id]; });
-    if(!text&&!uses.length) delete W[d.meal]; else W[d.meal]={text:text||uses.map(id=>shortName((S.stock.find(s=>s.id===id)||{}).text||'')).join(' + '),uses,q,eaten:false};
-    mealOpen=null; save(); renderShop(); return; }
+    if(!text&&!uses.length) delete W[d.meal]; else W[d.meal]={text:text||uses.map(id=>shortName((S.stock.find(s=>s.id===id)||{}).text||'')).join(' + '),uses,q,eaten:false,...(old&&old.carry&&uses.some(id=>(old.uses||[]).includes(id))?{carry:true}:{})};
+    const nc=W[d.meal]?carrySoup(S.shop.week,d.meal):0;
+    mealOpen=null; save(); renderShop(); if(nc) pop('🥣'); return; }
   if(d.recform){ e.preventDefault(); const title=v('title'); if(!title) return alert('Donne un nom au plat.');
     const data={title,slot:v('slot')||'soir',pers:Math.max(1,parseInt(v('pers'),10)||1),min:parseInt(v('min'),10)||0,ings:f.querySelector('[data-k=ings]').value.trim(),steps:f.querySelector('[data-k=steps]').value.trim()};
     let r=S.recipes.find(y=>y.id===d.recform); if(r) Object.assign(r,data); else { r={id:uid(),...data}; S.recipes.push(r); }
