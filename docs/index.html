@@ -1715,7 +1715,7 @@ function mealIdea(){
 if(!S.health) S.health={on:true};
 let hlOpen=false;
 const FG={
-  veg:/légume|salade|butternut|courge|citrouille|potage|velouté|fenouil|céleri|navet|panais|artichaut|blette|mâche|roquette|iceberg|tomate|concombre|courgette|carotte|haricots? verts?|brocoli|épinard|poivron|chou|champignon|soupe|potiron|poireau|aubergine|ratatouille|crudité|betterave|radis|endive|asperge|petits? pois|poêlée/i,
+  veg:/légume|salade|butternut|minestrone|garbure|gaspacho|courge|citrouille|potage|velouté|fenouil|céleri|navet|panais|artichaut|blette|mâche|roquette|iceberg|tomate|concombre|courgette|carotte|haricots? verts?|brocoli|épinard|poivron|chou|champignon|soupe|potiron|poireau|aubergine|ratatouille|crudité|betterave|radis|endive|asperge|petits? pois|poêlée/i,
   fruit:/\bpommes?\b(?! de terre)|banane|orange|fruit|kiwi|poire|clémentine|mandarine|fraise|framboise|myrtille|abricot|pêche|raisin|ananas|mangue/i,
   prot:/œuf|oeuf|poulet|cordon|nuggets|pané|saucisse|knacki|chipolata|merguez|lardon|dinde|jambon|poisson|thon|saumon|sardine|maquereau|cabillaud|colin|steak|bœuf|boeuf|burger|lentille|pois chiche|haricots? rouges?|tofu|tempeh|skyr|fromage blanc|cottage|viande|crevette|filet|escalope|feta|mozzarella|fromage/i,
   starch:/pâtes|nouilles|riz|pain|crêpe|crepe|quiche|pizza|lasagne|croque|feuilleté|tarte salée|pommes? de terre|purée|grenaille|semoule|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|flocons|avoine|patate|tortilla|wrap|galette|blé|céréales|frites|biscotte/i,
@@ -1818,7 +1818,7 @@ const inStock=name=>{ const w=shortName(name).toLowerCase().split(/\s+/)[0].repl
 /* Déjeuner : uniquement avec mon stock, en portions d'assiette équilibrée */
 /* Pas un plat : sauces et condiments (pour le goût), ingrédients de pâtisserie / collation (flocons d'avoine, farine…) */
 const NOT_MEAL=/sauce|ketchup|moutarde|mayo|pesto|coulis|concentre|vinaigrette|huile|bouillon|cube|epice|herbes|poivre|\bsel\b|flocon|avoine|farine|maizena|chapelure|levure|sucre|biscotte|cereale|muesli|granola|pancake|confiture|miel|chocolat|biscuit|gateau|compote/;
-const SOUP=/soupe|veloute|potage|gaspacho/;
+const SOUP=/soupe|veloute|potage|gaspacho|minestrone|garbure|harira|chorba|bortsch|bouillon de legumes/;
 const isNotMeal=s=>NOT_MEAL.test(noAcc(String(s.text).toLowerCase()));
 const isSoup=s=>SOUP.test(noAcc(String(s.text).toLowerCase()));
 /* Repas complet comme dans la vraie vie : entrée (crudités ou potage), plat (protéine + féculent + légume
@@ -1925,7 +1925,7 @@ function healthIdea(slot){
 /* Soupe du soir : une brique fait plusieurs bols, on la remet les 2 soirs suivants (en entrée) */
 function carrySoup(wk,key){
   const [i,slot]=String(key).split('-'); if(slot!=='soir') return 0;
-  const sl=(S.meals[wk]||{})[key]; if(!sl||sl.carry) return 0;
+  const sl=(S.meals[wk]||{})[key]; if(!sl||sl.carry) return 0; sl.carried=true;
   const soup=(sl.uses||[]).map(id=>S.stock.find(s=>s.id===id)).find(s=>s&&isSoup(s));
   let name=soup&&shortName(soup.text);
   if(!name){ name=String(sl.text||'').split(/[·+,]/).map(x=>x.replace(/^\s*(entrée|plat|fin)\s*:\s*/i,'').trim()).find(x=>SOUP.test(noAcc(x))); if(!name) return 0; }
@@ -1933,7 +1933,7 @@ function carrySoup(wk,key){
   for(let k=1;k<=2;k++){
     const dt=new Date(addDays(wk,+i+k)+'T12:00:00'), w2=mondayOf(dt), k2=((dt.getDay()+6)%7)+'-soir', W2=S.meals[w2]||(S.meals[w2]={}), t=W2[k2];
     if(t&&(t.eaten||SOUP.test(noAcc(t.text||''))||(soup&&(t.uses||[]).includes(soup.id)))) continue;
-    const q=soup?{[soup.id]:takeOf(soup,sl,soup.id)}:{};
+    const q=soup?{[soup.id]:(sl.q&&+sl.q[soup.id])||recoQty(soup).n}:{};
     if(!t) W2[k2]={text:'Entrée : '+name,uses:soup?[soup.id]:[],q,eaten:false,carry:true};
     else { t.text='Entrée : '+name+' · '+(t.text||''); t.uses=[...(t.uses||[]),...(soup?[soup.id]:[])]; t.q={...(t.q||{}),...q}; t.carry=true; }
     n++; }
@@ -2027,8 +2027,16 @@ function eatPast(){
   if(ch) save();
 }
 let showPast=false;
+function carryAllSoups(){
+  const from=addDays(todayKey(),-2); let n=0;
+  Object.entries(S.meals).forEach(([wk,W])=>Object.entries(W).forEach(([key,sl])=>{
+    if(!/-soir$/.test(key)||!sl||sl.carry||sl.carried) return; if(addDays(wk,+key.split('-')[0])<from) return;
+    const hasSoup=(sl.uses||[]).some(id=>{ const st=S.stock.find(x=>x.id===id); return st&&isSoup(st); })||SOUP.test(noAcc(sl.text||''));
+    if(hasSoup){ n+=carrySoup(wk,key); sl.carried=true; } }));
+  if(n) save();
+}
 function mealsHtml(){
-  eatPast();
+  eatPast(); carryAllSoups();
   const wk=S.shop.week||(S.shop.week=mondayOf(new Date())), W=S.meals[wk]||{}, today=todayKey();
   const pastN=[...Array(7)].filter((_,i)=>addDays(wk,i)<today).length;
   const days=[...Array(7)].map((_,i)=>{ const iso=addDays(wk,i), d=new Date(iso+'T12:00:00');
@@ -2077,7 +2085,7 @@ function breakfastHtml(){
 function pkgGrams(t){ const m=String(t).match(/(\d+(?:[.,]\d+)?)\s*(kg|g)\b/i); if(!m) return 0; const v=parseFloat(m[1].replace(',','.')); return m[2].toLowerCase()==='kg'?v*1000:v; }
 /* Poids habituel d'un paquet quand il n'est pas écrit (g ou mL) */
 function defPkg(t,u){
-  if(/soupe|veloute|potage/.test(t)) return 1000;
+  if(SOUP.test(t)) return 1000;
   if(/pate|spaghetti|tagliatelle|penne|macaroni|coquillette|riz|semoule|quinoa|boulgour|lentille|pois chiche|haricot sec/.test(t)) return u==='boite'&&/lentille|pois chiche|haricot/.test(t)?265:500;
   if(/puree|surgele|poelee|ratatouille|legume/.test(t)) return u==='boite'?400:1000;
   if(/sauce|coulis|ketchup|mayo|moutarde|vinaigrette/.test(t)) return 400;
@@ -2107,7 +2115,7 @@ function recoQty(s){
   else if(/huile/.test(t)){ g=10; txt='1 c. à soupe'; }
   else if(/flocon|avoine/.test(t)){ g=40; txt='≈ 40 g (collation, pancakes…)'; }
   else if(/lardon/.test(t)){ g=50; txt='≈ 50 g'; }
-  else if(/soupe|veloute|potage/.test(t)){ g=300; txt='1 bol (300 mL)'; }
+  else if(SOUP.test(t)){ g=300; txt='1 bol (300 mL)'; }
   else if(/pain|baguette/.test(t)){ g=40; txt=/petit/.test(t)?'1 petit pain':'1 tranche (≈ 40 g)'; }
   else if(/pomme de terre|patate|grenaille/.test(t)){ g=150; txt='≈ 150 g'; }
   else if(/puree/.test(t)&&/legume|epinard|brocoli|courgette|carotte|haricot|potiron/.test(t)){ g=200; txt=/surgel/.test(t)||s.cat==='surgele'?'200 g surgelée = ≈ 170 g une fois cuite (½ assiette)':'≈ 200 g (½ assiette)'; }
