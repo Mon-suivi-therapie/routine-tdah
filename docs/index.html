@@ -2100,6 +2100,7 @@ function defPkg(t,u){
   if(/puree|surgele|poelee|ratatouille|legume/.test(t)) return u==='boite'?400:1000;
   if(/sauce|coulis|ketchup|mayo|moutarde|vinaigrette/.test(t)) return 400;
   if(/crepe/.test(t)) return 480; // paquet de 6 petites crêpes
+  if(/saucisse|toulouse|merguez|chipolata/.test(t)) return 480; // barquette ≈ 4 grosses saucisses
   if(/creme fraiche/.test(t)) return 200;
   if(/beurre blanc/.test(t)) return 200;
   if(/beurre/.test(t)) return 250;
@@ -2115,6 +2116,7 @@ function recoQty(s){
   else if(/quiche|pizza|lasagne|tarte salee|feuillete/.test(t)){ cnt=1; g=150; txt='1 part (≈ 150 g, poids de l’emballage)'; }
   else if(/oeuf|œuf/.test(t)){ cnt=2; txt='2 œufs'; }
   else if(/nugget/.test(t)){ cnt=5; g=100; txt='5 nuggets (≈ 100 g surgelés)'; }
+  else if(/toulouse|morteau|montbeliard|diots?\b/.test(t)){ cnt=1; g=120; txt='1 saucisse (≈ 120 g cru)'; }
   else if(/saucisse|knacki|chipolata|merguez/.test(t)){ cnt=2; g=100; txt='2 saucisses'; }
   else if(/burger|steak|cordon|filet|escalope|pave|cuisse|poisson pane/.test(t)){ cnt=1; g=120; txt='1 pièce (≈ 120 g cru)'; }
   else if(/vache qui rit|st moret|kiri|carre frais/.test(t)){ cnt=1; g=20; txt='1 portion'; }
