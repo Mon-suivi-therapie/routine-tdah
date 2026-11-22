@@ -1908,6 +1908,8 @@ function mealFromStock(slot){
   courses.forEach(([l,a])=>a.forEach(x=>{ const r=recoQty(x); let n=r.n;
     if(x===cheeseBread){ n=Math.round(n/2*100)/100||n; } // un petit morceau de pain avec le fromage
     if(l==='🥗 Entrée'&&side&&!isSoup(x)){ n=Math.round(n/2*100)/100||n; small=true; } // entrée + légume : petite entrée
+    // le soir, il y a déjà le pain (de mie) avec le fromage : moins de féculent dans le plat (≈ 60 %)
+    if(x===sc&&slot==='soir'&&(habBread||cheeseBread)&&!isBread(x)) n=Math.round(n*.6*100)/100;
     q[x.id]=n; }));
   const word=x=>shortName(x.text);
   return {text:courses.map(([l,a])=>`${l.split(' ')[1]} : ${a.map(word).join(' + ')}`).join(' · '),uses:ids,q,stockOnly:true,
@@ -1982,7 +1984,10 @@ function ideaPickHtml(slot){
   const L=ideaPick.list;
   return `<div class="ideapick"><b class="sub">💡 Choisis ton repas${slot==='midi'?' (avec ton stock)':''} :</b>
     ${L.map((x,i)=>{ const used=(x.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean);
-      const qt=s=>{ const r=recoQty(s); const t=r.txt.replace(/ · .*/,''); return (x.q&&x.q[s.id]<r.n?'petite part : la moitié de '+t:t)+(SAUCE.test(NT(s))?', facultatif':''); };
+      const qt=s=>{ const r=recoQty(s); const t=r.txt.replace(/ · .*/,''); let o=t;
+        if(x.q&&x.q[s.id]<r.n){ const k=x.q[s.id]/r.n, m=t.match(/(\d+)\s*g/);
+          o=m?'petite part : '+t.replace(/≈?\s*\d+\s*g/,'≈ '+Math.max(5,Math.round(+m[1]*k/5)*5)+' g').replace(/\s*\([^)]*assiette\)/,'')+(k<.7&&k>.5&&slot==='soir'?' (le pain compte déjà)':''):'petite part : la moitié de '+t; }
+        return o+(SAUCE.test(NT(s))?', facultatif':''); };
       const body=x.courses?x.courses.map(([l,ids])=>{ const a=ids.map(id=>S.stock.find(s=>s.id===id)).filter(Boolean);
           return `<span class="ideacourse"><b>${esc(l)} :</b> ${a.map(s=>`${esc(shortName(s.text))} <span class="sub">(${esc(qt(s))})</span>`).join(' + ')}</span>`; }).join('')
         :`<b>${esc(used.length?used.map(s=>shortName(s.text)).join(' + '):x.text)}</b>${used.length?`<br><span class="sub">${used.map(s=>`${esc(shortName(s.text))} : ${esc(qt(s))}`).join(' · ')}</span>`:''}`;
