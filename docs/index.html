@@ -1824,7 +1824,8 @@ const isSoup=s=>SOUP.test(noAcc(String(s.text).toLowerCase()));
 /* Repas complet comme dans la vraie vie : entrée (crudités ou potage), plat (protéine + féculent + légume
    d'accompagnement + un peu de sauce pour le goût), puis fromage OU dessert. Uniquement avec mon stock. */
 const NT=s=>noAcc(String(s.text));
-const SAUCE=/sauce|ketchup|moutarde|mayo|pesto|vinaigrette|creme fraiche|bolognaise|carbonara|coulis|beurre/;
+const SAUCE=/sauce|ketchup|moutarde|mayo|pesto|vinaigrette|creme fraiche|bolognaise|carbonara|coulis|beurre|tikka|massala|masala|korma/;
+const CURRY=/tikka|massala|masala|curry|korma|tandoori|colombo/; // sauces « curry » : avec du riz et du poulet
 const FISH=/poisson|colin|cabillaud|saumon|thon|merlu|lieu|sardine|maquereau|truite|crevette|fruits de mer|dorade|\bbar\b|sole|limande|merlan|hareng|surimi|moule/;
 const FISH_SAUCE=/beurre blanc|hollandaise|oseille|aneth|sauce citron|tartare/;
 const PASTA_SAUCE=/tomate|bolognaise|carbonara|creme|pesto|arrabbiata|basilic/;
@@ -1869,6 +1870,9 @@ function mealFromStock(slot){
   const lentL=S.stock.filter(s=>meal(s)&&isLent(s)), sauL=S.stock.filter(s=>meal(s)&&isSau(s)), sauT=sauL.filter(s=>has(s,/toulouse/));
   if((isLent(pr)||isLent(sc))&&sauL.length&&Math.random()<.8){ const l=isLent(sc)?sc:pr; pr=rnd(sauT)||rnd(sauL); sc=l; }
   else if(isSau(pr)&&lentL.length&&!isLent(sc)&&Math.random()<.75) sc=rnd(lentL);
+  // sauce tikka massala (curry…) : poulet + riz
+  let forceSauce=null; { const cu=S.stock.filter(s=>free(s)&&has(s,SAUCE)&&has(s,CURRY)), ch=S.stock.filter(s=>meal(s)&&has(s,/poulet|dinde/)&&!isSoup(s)&&!has(s,/crepe|galette|croque|quiche|pizza|nugget|cordon/)), ri=S.stock.filter(s=>meal(s)&&has(s,/\briz\b/)&&!isSoup(s));
+    if(cu.length&&ch.length&&ri.length&&Math.random()<.3){ pr=rnd(ch); sc=rnd(ri); forceSauce=rnd(cu); } }
   // plat déjà complet (crêpe jambon fromage, quiche, pizza…) : il contient son féculent, pas besoin d'en rajouter
   if(pr&&has(pr,FGN.starch)&&!isLent(pr)&&!has(pr,/pois chiche|haricots? rouges?/)) sc=null;
   // entrée : crudités ou UN potage
@@ -1886,9 +1890,10 @@ function mealFromStock(slot){
   // sauce pas obligatoire ; sauces pour poisson (beurre blanc…) seulement avec du poisson ; sauces pour pâtes avec des pâtes
   // haricots verts / lentilles : crème fraîche (ou un peu de beurre) ou nature, rien d'autre
   const plain=[pr,sc,side].some(x=>x&&has(x,/haricots? verts?|lentille/));
-  const fish=pr&&has(pr,FISH), fits=x=>plain?has(x,/creme fraiche|beurre(?! blanc)/):has(x,FISH_SAUCE)?fish:has(x,PASTA_SAUCE)&&!has(x,/creme fraiche|tomate/)?pasta:true;
+  const curryOk=pr&&has(pr,/poulet|dinde/)&&sc&&has(sc,/\briz\b/);
+  const fish=pr&&has(pr,FISH), fits=x=>has(x,CURRY)?curryOk&&!plain:plain?has(x,/creme fraiche|beurre(?! blanc)/):has(x,FISH_SAUCE)?fish:has(x,PASTA_SAUCE)&&!has(x,/creme fraiche|tomate/)?pasta:true;
   const okS=sauces.filter(fits), pref=fish?okS.filter(x=>has(x,FISH_SAUCE)||has(x,/beurre/)):pasta?okS.filter(x=>has(x,PASTA_SAUCE)||has(x,/beurre/)):okS;
-  const sauce=okS.length&&Math.random()<(pasta?.55:.35)?(rnd(pref)||rnd(okS)):null;
+  const sauce=forceSauce||(okS.length&&Math.random()<(pasta?.55:.35)?(rnd(pref)||rnd(okS)):null);
   // fin de repas : fromage OU dessert léger (les desserts sucrés seulement s'il n'y a rien d'autre, et pas tous les jours)
   const okD=L(DESSERT_OK).filter(x=>x!==pr), treat=L(DESSERT_TREAT), chz=L(CHEESE).filter(x=>x!==pr&&!isDish(x));
   const hab=endHab(slot)?endHabItems(slot):{out:[],miss:[]};
@@ -2111,6 +2116,7 @@ function recoQty(s){
   else if(/fromage blanc|yaourt|skyr|compote/.test(t)){ cnt=1; g=150; txt='1 pot (≈ 150 g)'; }
   else if(/fromage|emmental|comte|feta|mozza|raclette|camembert|chevre/.test(t)){ g=30; txt='30 g'; }
   else if(/jambon/.test(t)){ cnt=2; g=80; txt='2 tranches'; }
+  else if(CURRY.test(t)&&/sauce|tikka|massala|masala|korma/.test(t)){ g=100; txt='≈ 100 g (¼ d’un pot de 400 g)'; }
   else if(/beurre(?! blanc)(?! de cacahuete)/.test(t)){ g=10; txt='1 noisette (≈ 10 g)'; }
   else if(/sauce|ketchup|moutarde|mayo|pesto|coulis|vinaigrette|concentre|creme fraiche|beurre blanc/.test(t)){ g=40; txt='2 c. à soupe (≈ 40 g), pour le goût'; }
   else if(/huile/.test(t)){ g=10; txt='1 c. à soupe'; }
