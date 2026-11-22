@@ -1715,7 +1715,7 @@ function mealIdea(){
 if(!S.health) S.health={on:true};
 let hlOpen=false;
 const FG={
-  veg:/légume|salade|butternut|minestrone|garbure|gaspacho|courge|citrouille|potage|velouté|fenouil|céleri|navet|panais|artichaut|blette|mâche|roquette|iceberg|tomate|concombre|courgette|carotte|haricots? verts?|brocoli|épinard|poivron|chou|champignon|soupe|potiron|poireau|aubergine|ratatouille|crudité|betterave|radis|endive|asperge|petits? pois|poêlée/i,
+  veg:/légume|salade|butternut|minestrone|garbure|gaspacho|courge|citrouille|potage|velouté|fenouil|céleri|navet|panais|artichaut|(?<!ta)blette|mâche|roquette|iceberg|tomate|concombre|courgette|carotte|haricots? verts?|brocoli|épinard|poivron|chou|champignon|soupe|potiron|poireau|aubergine|ratatouille|crudité|betterave|radis|endive|asperge|petits? pois|poêlée/i,
   fruit:/\bpommes?\b(?! de terre)|banane|orange|fruit|kiwi|poire|clémentine|mandarine|fraise|framboise|myrtille|abricot|pêche|raisin|ananas|mangue/i,
   prot:/œuf|oeuf|poulet|cordon|nuggets|pané|saucisse|knacki|chipolata|merguez|lardon|dinde|jambon|poisson|thon|saumon|sardine|maquereau|cabillaud|colin|steak|bœuf|boeuf|burger|lentille|pois chiche|haricots? rouges?|tofu|tempeh|skyr|fromage blanc|cottage|viande|crevette|filet|escalope|feta|mozzarella|fromage/i,
   starch:/pâtes|nouilles|riz|pain|crêpe|crepe|quiche|pizza|lasagne|croque|feuilleté|tarte salée|pommes? de terre|purée|grenaille|semoule|quinoa|boulgour|lentille|pois chiche|haricots? rouges?|flocons|avoine|patate|tortilla|wrap|galette|blé|céréales|frites|biscotte/i,
@@ -2099,7 +2099,7 @@ function pkgGrams(t){ const m=String(t).match(/(\d+(?:[.,]\d+)?)\s*(kg|g)\b/i); 
 /* Poids habituel d'un paquet quand il n'est pas écrit (g ou mL) */
 function defPkg(t,u){
   if(SOUP.test(t)) return 1000;
-  if(/pate|spaghetti|tagliatelle|penne|macaroni|coquillette|riz|semoule|quinoa|boulgour|lentille|pois chiche|haricot sec/.test(t)) return u==='boite'&&/lentille|pois chiche|haricot/.test(t)?265:500;
+  if(/pate|spaghetti|tagliatelle|penne|macaroni|coquillette|riz|semoule|quinoa|boulgour|lentille|pois chiche|haricot sec|ebly|(^|[^a-z])ble([^a-z]|$)/.test(t)) return u==='boite'&&/lentille|pois chiche|haricot/.test(t)?265:500;
   if(/puree|surgele|poelee|ratatouille|legume/.test(t)) return u==='boite'?400:1000;
   if(/sauce|coulis|ketchup|mayo|moutarde|vinaigrette/.test(t)) return 400;
   if(/crepe/.test(t)) return 480; // paquet de 6 petites crêpes
@@ -2137,7 +2137,7 @@ function recoQty(s){
   else if(/pommes? de terre|patate|grenaille/.test(t)){ g=150; txt='≈ 150 g cru (épluchées)'; }
   else if(/puree/.test(t)&&/legume|epinard|brocoli|courgette|carotte|haricot|potiron/.test(t)){ g=200; txt=/surgel/.test(t)||s.cat==='surgele'?'200 g surgelée, pesée avant cuisson (½ assiette)':'≈ 200 g (½ assiette)'; }
   else if(/puree/.test(t)){ g=150; txt=/surgel/.test(t)||s.cat==='surgele'?'≈ 150 g surgelée, avant cuisson (¼ assiette)':'≈ 150 g (¼ assiette)'; }
-  else if(/pates|riz|semoule|quinoa|boulgour|lentille|pois chiche|nouille|ble /.test(t)){ g=50; txt='≈ 50 g cru (¼ assiette)'; }
+  else if(/pates|riz|semoule|quinoa|boulgour|lentille|pois chiche|nouille|ebly|(^|[^a-z])ble([^a-z]|$)/.test(t)){ g=50; txt='≈ 50 g cru (¼ assiette)'; }
   else if(FGN.prot.test(t)){ g=120; txt='≈ 120 g cru'; }
   else if(FGN.veg.test(t)){ g=200; txt=/surgel|poelee/.test(t)||s.cat==='surgele'?'≈ 200 g surgelés, avant cuisson (½ assiette)':'≈ 200 g cru (½ assiette)'; }
   else if(FGN.fruit.test(t)){ txt='1 fruit'; }
