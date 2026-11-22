@@ -2089,6 +2089,7 @@ function defPkg(t,u){
   if(/pate|spaghetti|tagliatelle|penne|macaroni|coquillette|riz|semoule|quinoa|boulgour|lentille|pois chiche|haricot sec/.test(t)) return u==='boite'&&/lentille|pois chiche|haricot/.test(t)?265:500;
   if(/puree|surgele|poelee|ratatouille|legume/.test(t)) return u==='boite'?400:1000;
   if(/sauce|coulis|ketchup|mayo|moutarde|vinaigrette/.test(t)) return 400;
+  if(/crepe/.test(t)) return 480; // paquet de 6 petites crêpes
   if(/creme fraiche/.test(t)) return 200;
   if(/beurre blanc/.test(t)) return 200;
   if(/beurre/.test(t)) return 250;
@@ -2100,7 +2101,7 @@ function defPkg(t,u){
 }
 function recoQty(s){
   const t=noAcc(s.text), u=s.u; let g=0, cnt=1, txt='';
-  if(/crepe|galette|croque/.test(t)&&/jambon|fromage|poulet|oeuf|dinde|thon|saumon|champignon/.test(t)){ cnt=1; g=120; txt=/crepe/.test(t)?'1 crêpe':/croque/.test(t)?'1 croque':'1 galette'; }
+  if(/crepe|galette|croque/.test(t)&&/jambon|fromage|poulet|oeuf|dinde|thon|saumon|champignon/.test(t)){ const cr=/crepe/.test(t); cnt=cr&&!['paquet','boite','sachet','barquette'].includes(u)?2:1; g=cr?160:120; txt=cr?'2 à 3 petites crêpes':/croque/.test(t)?'1 croque':'1 galette'; }
   else if(/quiche|pizza|lasagne|tarte salee|feuillete/.test(t)){ cnt=1; g=150; txt='1 part (≈ 150 g)'; }
   else if(/oeuf|œuf/.test(t)){ cnt=2; txt='2 œufs'; }
   else if(/nugget/.test(t)){ cnt=5; g=100; txt='5 nuggets (≈ 100 g)'; }
