@@ -1820,7 +1820,8 @@ const inStock=name=>{ const w=shortName(name).toLowerCase().split(/\s+/)[0].repl
 const NOT_MEAL=/sauce|ketchup|moutarde|mayo|pesto|coulis|concentre|vinaigrette|huile|bouillon|cube|epice|herbes|poivre|\bsel\b|flocon|avoine|farine|maizena|chapelure|levure|sucre|biscotte|cereale|muesli|granola|pancake|confiture|miel|chocolat|biscuit|gateau|compote/;
 const SOUP=/soupe|veloute|potage|gaspacho|minestrone|garbure|harira|chorba|bortsch|bouillon de legumes/;
 const isNotMeal=s=>NOT_MEAL.test(noAcc(String(s.text).toLowerCase()));
-const isSoup=s=>SOUP.test(noAcc(String(s.text).toLowerCase()));
+// une soupe : par son nom, sa marque, ou des légumes vendus en brique (ex : « Liebig potiron »)
+const isSoup=s=>{ const t=noAcc(String(s.text).toLowerCase()); return SOUP.test(t)||/liebig|knorr|royco|maggi|soup/.test(t)||(s.u==='brique'&&FGN.veg.test(t)&&!/lait|creme|jus|sauce|coulis/.test(t)); };
 /* Repas complet comme dans la vraie vie : entrée (crudités ou potage), plat (protéine + féculent + légume
    d'accompagnement + un peu de sauce pour le goût), puis fromage OU dessert. Uniquement avec mon stock. */
 const NT=s=>noAcc(String(s.text));
@@ -1930,16 +1931,18 @@ function healthIdea(slot){
   return {text:c[1],uses:[...new Set(uses)]};
 }
 /* Soupe du soir : une brique fait plusieurs bols, on la remet les 2 soirs suivants (en entrée) */
-function carrySoup(wk,key){
+function carrySoup(wk,key,force){
   const [i,slot]=String(key).split('-'); if(slot!=='soir') return 0;
-  const sl=(S.meals[wk]||{})[key]; if(!sl||sl.carry) return 0; sl.carried=true;
-  const soup=(sl.uses||[]).map(id=>S.stock.find(s=>s.id===id)).find(s=>s&&isSoup(s));
+  const sl=(S.meals[wk]||{})[key]; if(!sl||(sl.carry&&!force)) return 0; sl.carried=true;
+  const used=(sl.uses||[]).map(id=>S.stock.find(s=>s.id===id)).filter(Boolean), parts=String(sl.text||'').split(/[·+,]/).map(x=>x.replace(/^\s*(entrée|plat|fin)\s*:\s*/i,'').trim()).filter(Boolean);
+  // bouton « 🥣 » : si je ne reconnais pas la soupe, je prends l'entrée (ou le 1er élément du repas)
+  const soup=used.find(s=>isSoup(s))||(force?used.find(s=>/^\s*entr/i.test(sl.text||'')&&noAcc(parts[0]||'').includes(noAcc(shortName(s.text)).split(' ')[0]))||used[0]:null);
   let name=soup&&shortName(soup.text);
-  if(!name){ name=String(sl.text||'').split(/[·+,]/).map(x=>x.replace(/^\s*(entrée|plat|fin)\s*:\s*/i,'').trim()).find(x=>SOUP.test(noAcc(x))); if(!name) return 0; }
+  if(!name){ name=parts.find(x=>SOUP.test(noAcc(x)))||(force?parts[0]:null); if(!name) return 0; }
   let n=0;
   for(let k=1;k<=2;k++){
     const dt=new Date(addDays(wk,+i+k)+'T12:00:00'), w2=mondayOf(dt), k2=((dt.getDay()+6)%7)+'-soir', W2=S.meals[w2]||(S.meals[w2]={}), t=W2[k2];
-    if(t&&(t.eaten||SOUP.test(noAcc(t.text||''))||(soup&&(t.uses||[]).includes(soup.id)))) continue;
+    if(t&&(t.eaten||SOUP.test(noAcc(t.text||''))||(soup&&(t.uses||[]).includes(soup.id))||noAcc(t.text||'').includes(noAcc(name)))) continue;
     const q=soup?{[soup.id]:(sl.q&&+sl.q[soup.id])||recoQty(soup).n}:{};
     if(!t) W2[k2]={text:'Entrée : '+name,uses:soup?[soup.id]:[],q,eaten:false,carry:true};
     else { t.text='Entrée : '+name+' · '+(t.text||''); t.uses=[...(t.uses||[]),...(soup?[soup.id]:[])]; t.q={...(t.q||{}),...q}; t.carry=true; }
@@ -2157,6 +2160,7 @@ function mealForm(key,sl,own){
         <span class="mqname">${esc(shortName(s.text))}<br><span class="sub">👉 conseil : <b>${esc(r.txt)}</b> · ${unitTxt(s.u,availOf(s))} dispo</span></span>
         <span class="mqq"><input type="text" inputmode="decimal" data-mq="${s.id}" value="${numTxt(q)}" aria-label="Quantité"> <span class="sub">${q>=2?un[2]:un[1]}</span></span></label>`; }).join('')}</div>`:''}
     <span class="row" style="justify-content:flex-start;width:100%"><button class="primary">Enregistrer</button>
+      ${/-soir$/.test(key)&&(sl.text||(sl.uses||[]).length)?`<button type="button" class="ghost" data-soup3="${key}" title="Remet la soupe (ou l'entrée) en entrée les 2 soirs suivants">🥣 Soupe aussi les 2 soirs suivants</button>`:''}
       <button type="button" class="ghost" data-mclear="${key}">${own?'↺ Remettre l\'habituel':'Vider'}</button><button type="button" class="ghost" data-mclose="1">Annuler</button></span></form>`;
 }
 let stEdit=null;
@@ -2302,6 +2306,8 @@ Pense à mettre le prix avec ✏️.`:'Tout est déjà dans ta liste. 🙂'); re
   if(d.imore&&ideaPick){ const sl0=ideaPick.key.split('-')[1], old=new Set(ideaPick.list.map(x=>[...(x.uses||[])].sort().join(',')||x.text));
     const fresh=ideaList(sl0,12,ideaPick.key).filter(x=>!old.has([...(x.uses||[])].sort().join(',')||x.text)); ideaPick.list=(fresh.length?fresh:ideaList(sl0,4,ideaPick.key)).slice(0,4); renderShop(); return; }
   if(d.iclose){ ideaPick=null; renderShop(); return; }
+  if(d.soup3){ const n=carrySoup(S.shop.week,d.soup3,true); save(); mealOpen=null; renderShop();
+    alert(n?`🥣 Ajoutée en entrée ${n===2?'les 2 soirs suivants':'1 soir de plus'} (touche ▶ si c'est la semaine d'après).`:'Les 2 soirs suivants ont déjà cette soupe (ou sont déjà mangés).'); return; }
   if(d.endbuy){ const m=endHabItems(d.endbuy).miss; const cat=w=>/fromage|yaourt|liegeois|creme/.test(noAcc(w))?'laitier':/compote/.test(noAcc(w))?'sucre':/pain/.test(noAcc(w))?'pain':'sale';
     m.filter(w=>!S.shop.items.some(i=>i.m===S.shop.cur&&!i.done&&noAcc(i.text)===noAcc(w))).forEach(w=>S.shop.items.push({id:uid(),cat:cat(w),text:w.charAt(0).toUpperCase()+w.slice(1),qty:1,price:0,done:false,m:S.shop.cur,store:SHOP_DEF_STORE}));
     save(); pop('🛒'); renderShop(); alert('Ajouté à ta liste : '+m.join(', ')); return; }
