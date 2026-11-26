@@ -2412,9 +2412,10 @@ function awayHtml(){
   return `<div class="card awaycard"><h2>🏖️ Pas à la maison</h2>${awayForm()}</div>${tripHtml()}`;
 }
 /* Valise : quantités selon la durée */
+const TRIP_GROUPS=['👕 Vêtements','🧺 Lessive sur place','🧴 Toilette','💊 Santé','🔌 Utile','🏠 Avant de partir','🐱 Les chats'];
 const TRIP_DUR=[[2,'Week-end'],[5,'5 jours'],[7,'1 semaine'],[15,'15 jours']];
 const TRIP_OPTS=[['hot','☀️ Il fera chaud'],['cold','❄️ Il fera froid'],['swim','🏊 Piscine / plage'],['sport','🏃 Sport'],['wash','🧺 Je peux laver mon linge sur place'],['meds','💊 Médicaments'],['cats','🐱 Les chats restent à la maison']];
-let tripDraft=null;
+let tripDraft=null, tripLastG='👕 Vêtements';
 function tripItems(d,o){
   const W=o.wash&&d>4, c=Math.min(d,W?4:7), pl=(n,s,p)=>`${n} ${n>1?(p||s+'s'):s}`, L=[];
   const add=(g,t)=>L.push({id:uid(),g,text:t,done:false});
@@ -2445,6 +2446,9 @@ function tripItems(d,o){
     add('🐱 Les chats','Eau fraîche (fontaine ou bols pleins)');
     add('🐱 Les chats','Laisser le numéro du vétérinaire et le mien');
     if(d<=2) add('🐱 Les chats','Distributeur de croquettes et d\'eau pour le week-end'); }
+  // mes ajouts enregistrés (📌), rangés dans leur catégorie
+  (S.tripMine||[]).forEach(m=>{ if(L.some(x=>x.g===m.g&&x.text.toLowerCase()===m.text.toLowerCase())) return;
+    const it={id:uid(),g:m.g,text:m.text,done:false,mine:true}, j=L.map(x=>x.g).lastIndexOf(m.g); if(j<0) L.push(it); else L.splice(j+1,0,it); });
   return L;
 }
 function tripHtml(){
@@ -2459,8 +2463,11 @@ function tripHtml(){
   return `<div class="card routine"><h2>🧳 Ma valise · ${T.d} jour${T.d>1?'s':''} <span class="chip">${n}/${T.items.length}</span></h2>
     <div class="bar"><i style="width:${T.items.length?n/T.items.length*100:0}%"></i></div>
     ${n===T.items.length?'<p class="msg">🎉 Valise prête ! Bon voyage.</p>':''}
-    ${groups.map(g=>`<h3 class="evh">${esc(g)}</h3>${T.items.filter(x=>x.g===g).map(x=>`<div class="step ${x.done?'done':''}"><label><input type="checkbox" data-tripi="${x.id}" ${x.done?'checked':''}><span class="t">${esc(x.text)}</span></label><button class="ghost" data-tripdel="${x.id}" aria-label="Supprimer">✕</button></div>`).join('')}`).join('')}
-    <form data-tripadd="1" class="row" style="flex-wrap:nowrap;margin-top:10px"><input data-k="text" placeholder="Ajouter quelque chose…" autocomplete="off"><button class="primary">+</button></form>
+    ${groups.map(g=>`<h3 class="evh">${esc(g)}</h3>${T.items.filter(x=>x.g===g).map(x=>`<div class="step ${x.done?'done':''}"><label><input type="checkbox" data-tripi="${x.id}" ${x.done?'checked':''}><span class="t">${esc(x.text)}${x.mine?' <span class="sub" title="Enregistré pour les prochaines valises">📌</span>':''}</span></label><button class="ghost" data-tripdel="${x.id}" aria-label="Supprimer">✕</button></div>`).join('')}`).join('')}
+    <form data-tripadd="1" class="row" style="margin-top:10px"><select data-k="g" aria-label="Catégorie">${[...new Set([...TRIP_GROUPS,...groups,...(S.tripMine||[]).map(m=>m.g)])].map(g=>`<option ${g===tripLastG?'selected':''}>${esc(g)}</option>`).join('')}<option value="__new">➕ Nouvelle catégorie…</option></select>
+      <span class="row" style="flex-wrap:nowrap;flex:1 1 100%"><input data-k="text" placeholder="Ajouter quelque chose…" autocomplete="off" style="flex:1"><button class="primary">+</button></span>
+      <label class="sub" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-k="keep" checked> 📌 Le garder pour les prochaines valises</label></form>
+    ${(S.tripMine||[]).length?`<p class="sub">📌 ${S.tripMine.length} ajout${S.tripMine.length>1?'s':''} enregistré${S.tripMine.length>1?'s':''} : ${S.tripMine.length>1?'ils reviennent':'il revient'} à chaque nouvelle valise.</p>`:''}
     <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="ghost" data-tripnew="1">🧳 Nouvelle valise</button></div></div>`;
 }
 /* ---------- Mes chats ----------  S.cats = {n, g (grammes de croquettes / chat / jour), have:{clé:true}} */
@@ -2513,7 +2520,9 @@ document.addEventListener('click',e=>{
   if(d.tripgo){ S.trip={d:tripDraft.d,o:{...tripDraft.o},items:tripItems(tripDraft.d,tripDraft.o)}; tripDraft=null; save(); renderHome(); return; }
   if(d.tripcancel){ tripDraft=null; renderHome(); return; }
   if(d.tripnew){ if(!S.trip.items.some(x=>x.done)||confirm('Recommencer une nouvelle valise ? La liste actuelle sera effacée.')){ tripDraft={d:S.trip.d,o:{...S.trip.o}}; renderHome(); } return; }
-  if(d.tripdel){ S.trip.items=S.trip.items.filter(x=>x.id!==d.tripdel); save(); renderHome(); return; }
+  if(d.tripdel){ const x=S.trip.items.find(i=>i.id===d.tripdel); S.trip.items=S.trip.items.filter(i=>i.id!==d.tripdel);
+    if(x&&x.mine&&confirm(`« ${x.text} » : ne plus le mettre dans les prochaines valises ?`)) S.tripMine=(S.tripMine||[]).filter(m=>!(m.g===x.g&&m.text.toLowerCase()===x.text.toLowerCase()));
+    save(); renderHome(); return; }
   if(d.catn){ const C=catsOf(); C.n=Math.max(0,Math.min(12,C.n+(+d.catn))); save(); renderHome(); return; }
   if(d.catbuy){ const C=catsOf(), g=catGear(C.n).find(x=>x[0]===d.catbuy);
     S.shop.items.push({id:uid(),cat:'animal',text:`${g[1]} × ${g[1]>1?g[3]:g[2]}`.replace(/^1 × /,''),qty:1,price:0,done:false,m:S.shop.cur,store:'Action'});
@@ -2537,7 +2546,13 @@ document.addEventListener('submit',e=>{
     if(!until||until<from) return alert('Choisis une date de retour après la date de départ.');
     if(until<todayKey()) return alert('La date de retour est déjà passée.');
     S.away={type:v('type')||'vac',from,until}; save(); pop('🏖️'); refreshAway(); return; }
-  if(d.tripadd){ e.preventDefault(); const text=v('text'); if(!text) return; S.trip.items.push({id:uid(),g:'➕ Ajouté par moi',text,done:false}); save(); renderHome(); return; }
+  if(d.tripadd){ e.preventDefault(); const text=v('text'); if(!text) return; let g=v('g');
+    if(g==='__new'){ g=(prompt('Nom de la nouvelle catégorie (ex : 🎒 Pour la plage) :')||'').trim(); if(!g) return; }
+    const keep=f.querySelector('[data-k=keep]').checked; tripLastG=g;
+    const items=S.trip.items, j=items.map(x=>x.g).lastIndexOf(g), it={id:uid(),g,text,done:false,mine:keep};
+    if(j<0) items.push(it); else items.splice(j+1,0,it);
+    if(keep){ S.tripMine=S.tripMine||[]; if(!S.tripMine.some(m=>m.g===g&&m.text.toLowerCase()===text.toLowerCase())) S.tripMine.push({g,text}); }
+    save(); renderHome(); return; }
 });
 
 /* ---------- Navigation ---------- */
