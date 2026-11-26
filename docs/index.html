@@ -2413,16 +2413,20 @@ function awayHtml(){
 }
 /* Valise : quantités selon la durée */
 const TRIP_DUR=[[2,'Week-end'],[5,'5 jours'],[7,'1 semaine'],[15,'15 jours']];
-const TRIP_OPTS=[['hot','☀️ Il fera chaud'],['cold','❄️ Il fera froid'],['swim','🏊 Piscine / plage'],['sport','🏃 Sport'],['meds','💊 Médicaments'],['cats','🐱 Les chats restent à la maison']];
+const TRIP_OPTS=[['hot','☀️ Il fera chaud'],['cold','❄️ Il fera froid'],['swim','🏊 Piscine / plage'],['sport','🏃 Sport'],['wash','🧺 Je peux laver mon linge sur place'],['meds','💊 Médicaments'],['cats','🐱 Les chats restent à la maison']];
 let tripDraft=null;
 function tripItems(d,o){
-  const c=Math.min(d,7), pl=(n,s,p)=>`${n} ${n>1?(p||s+'s'):s}`, L=[];
+  const W=o.wash&&d>4, c=Math.min(d,W?4:7), pl=(n,s,p)=>`${n} ${n>1?(p||s+'s'):s}`, L=[];
   const add=(g,t)=>L.push({id:uid(),g,text:t,done:false});
   add('👕 Vêtements',pl(c+1,'sous-vêtement')); add('👕 Vêtements',pl(c+1,'paire de chaussettes','paires de chaussettes'));
   add('👕 Vêtements',pl(c,'t-shirt / haut','t-shirts / hauts')); add('👕 Vêtements',pl(Math.max(1,Math.ceil(c/3)),'pantalon / jupe','pantalons / jupes'));
   add('👕 Vêtements',pl(d>3?2:1,'pyjama')); add('👕 Vêtements','Chaussures confortables (aux pieds)');
   if(d>=5) add('👕 Vêtements','Une tenue un peu habillée');
-  if(d>7) add('👕 Vêtements','Lessive sur place prévue : vêtements pour 7 jours');
+  if(W){ const k=Math.ceil(d/4)-1; add('🧺 Lessive sur place','Vêtements pour 4 jours seulement : je lave en route');
+    add('🧺 Lessive sur place',`${k} lessive${k>1?'s':''} à prévoir (environ tous les 3-4 jours)`);
+    add('🧺 Lessive sur place',pl(k,'dose de lessive (capsule ou petit flacon)','doses de lessive (capsules ou petit flacon)'));
+    add('🧺 Lessive sur place','Quelques pinces à linge (ou un petit étendoir)'); }
+  else if(d>7) add('👕 Vêtements','Lessive sur place prévue : vêtements pour 7 jours');
   if(o.hot){ add('👕 Vêtements',pl(Math.max(1,Math.ceil(c/2)),'short')); add('👕 Vêtements','Casquette / chapeau'); add('👕 Vêtements','Lunettes de soleil'); }
   if(o.cold){ add('👕 Vêtements','Manteau chaud'); add('👕 Vêtements',pl(Math.max(1,Math.ceil(c/3)),'pull')); add('👕 Vêtements','Bonnet, écharpe, gants'); }
   if(o.swim){ add('👕 Vêtements','Maillot de bain'); add('👕 Vêtements','Serviette de plage'); add('👕 Vêtements','Tongs'); }
