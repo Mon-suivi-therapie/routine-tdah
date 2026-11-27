@@ -486,8 +486,10 @@ let syncArmed=false;
 const save = () => { if(syncArmed){ S.updatedAt=Date.now(); schedulePush(); } try{ localStorage.setItem('routine-tdah', JSON.stringify(S)); }catch(e){} };
 
 const done = id => !!(S.log[todayKey()]||{})[id];
-function setDone(id,v){
-  const k=todayKey(); S.log[k]=S.log[k]||{};
+// logDay : un jour passé que je corrige (« j'ai oublié de noter hier »), sinon null = aujourd'hui
+let logDay=null;
+function setDone(id,v,day){
+  const k=day||todayKey(); S.log[k]=S.log[k]||{};
   const was=!!S.log[k][id], old=S.points;
   if(v&&!was) S.points+=10;
   if(!v&&was) S.points=Math.max(0,S.points-10);
@@ -561,18 +563,22 @@ function renderHeader(){
 /* ---------- Aujourd'hui ---------- */
 let routineOpen={}; // choix d'ouverture faits par l'utilisateur (id -> true/false)
 $('#tab-today').addEventListener('click',e=>{
+  const ld=e.target.closest('[data-logday]');
+  if(ld){ const n=+ld.dataset.logday; logDay=n?addDays(logDay||todayKey(),n):null; if(logDay&&logDay>=todayKey()) logDay=null; renderToday(); window.scrollTo(0,0); return; }
   const sm=e.target.closest('summary'); if(!sm) return;
   const d=sm.parentElement; if(d.dataset.rid) routineOpen[d.dataset.rid]=!d.open;
 });
 function renderToday(){
-  const curR=currentRoutine(), hmNow=new Date().toTimeString().slice(0,5);
-  const nextR=[...S.routines].filter(r=>r.time&&r.time>hmNow).sort((a,b)=>a.time.localeCompare(b.time))[0];
-  $('#tab-today').innerHTML = awayBanner() + tasksCard() + S.routines.map(r=>{
-    const vs=visSteps(r);
-    const n=vs.filter(s=>done(s.id)).length, t=vs.length;
-    const mins=vs.filter(s=>!done(s.id)).reduce((a,s)=>a+(+s.min||0),0);
+  if(logDay&&logDay>=todayKey()) logDay=null;
+  const past=!!logDay, dk=logDay||todayKey(), dn=id=>!!(S.log[dk]||{})[id];
+  const curR=past?null:currentRoutine(), hmNow=new Date().toTimeString().slice(0,5);
+  const nextR=past?null:[...S.routines].filter(r=>r.time&&r.time>hmNow).sort((a,b)=>a.time.localeCompare(b.time))[0];
+  $('#tab-today').innerHTML = (past?pastDayBar(dk):awayBanner() + tasksCard()) + S.routines.map(r=>{
+    const vs=past?r.steps:visSteps(r);
+    const n=vs.filter(s=>dn(s.id)).length, t=vs.length;
+    const mins=vs.filter(s=>!dn(s.id)).reduce((a,s)=>a+(+s.min||0),0);
     // Seuls le moment en cours et le suivant sont ouverts ; les autres se déplient d'un clic
-    const open=routineOpen[r.id]!==undefined?routineOpen[r.id]:(r===curR||r===nextR);
+    const open=past||(routineOpen[r.id]!==undefined?routineOpen[r.id]:(r===curR||r===nextR));
     return `<details class="card routine" data-rid="${r.id}" ${open?'open':''} style="--acc:var(--c${S.routines.indexOf(r)%4})">
       <summary style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <h2>${esc(r.emoji)} ${esc(r.name)} ${r.time?`<span class="chip">${esc(r.time)}</span>`:''}${r===curR?' <span class="chip nowchip">maintenant</span>':''}</h2>
@@ -580,15 +586,22 @@ function renderToday(){
       </summary>
       <div class="bar"><i style="width:${t?n/t*100:0}%"></i></div>
       <div style="margin-top:8px">${vs.map(s=>`
-        <div class="step ${done(s.id)?'done':''}">
-          <label><input type="checkbox" data-id="${s.id}" ${done(s.id)?'checked':''}>
+        <div class="step ${dn(s.id)?'done':''}">
+          <label><input type="checkbox" data-id="${s.id}" ${dn(s.id)?'checked':''}>
           <span class="t">${esc(s.text)}</span></label>
-          ${s.at?`<span class="chip atchip" data-at="${s.at}">⏰ ${esc(s.at)}</span>`:''}
+          ${s.at&&!past?`<span class="chip atchip" data-at="${s.at}">⏰ ${esc(s.at)}</span>`:''}
           ${s.min?`<span class="chip">${s.min} min</span>`:''}
         </div>`).join('')||'<p class="sub">Aucune étape. Ajoute-en dans l\'onglet Routines.</p>'}</div>
     </details>`;
   }).join('') || '<div class="card">Crée ta première routine dans l\'onglet ⚙️.</div>';
+  if(!past&&S.routines.length) $('#tab-today').innerHTML+=`<div class="row" style="justify-content:center;margin:4px 0 10px"><button class="ghost" data-logday="-1">📅 Oublié de noter hier ? Corriger hier</button></div>`;
   refreshDue();
+}
+function pastDayBar(k){
+  const d=new Date(k+'T12:00:00'), l=d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}), ago=Math.round((new Date(todayKey()+'T12:00:00')-d)/864e5);
+  return `<div class="card routine" style="--acc:var(--main)"><h2>📅 Je corrige ${ago===1?'hier':'un jour passé'} · ${esc(l)}</h2>
+    <p class="sub">Coche ce que tu as fait ce jour-là et que tu avais oublié de noter. Ça compte pour tes points et ta série. 💜</p>
+    <div class="row" style="justify-content:flex-start">${ago<7?'<button class="ghost" data-logday="-1">◀ Jour d’avant</button>':''}${ago>1?'<button class="ghost" data-logday="1">Jour d’après ▶</button>':''}<button class="primary" data-logday="0">✅ Revenir à aujourd’hui</button></div></div>`;
 }
 // Colore les heures précises arrivées (sans tout redessiner, pour ne pas perdre ce que tu es en train de taper)
 function refreshDue(){
@@ -757,7 +770,8 @@ $('#tab-today').addEventListener('change',e=>{
     setDone('t_'+t.id,t.done); if(t.done) pop('✅'); renderAll(); return;
   }
   if(e.target.dataset.id){
-    setDone(e.target.dataset.id,e.target.checked);
+    setDone(e.target.dataset.id,e.target.checked,logDay);
+    if(logDay){ if(e.target.checked) pop('📅'); renderAll(); return; }
     if(e.target.checked){ pop(['⭐','🎉','💪','✨','🌟'][Math.floor(Math.random()*5)]); }
     if(progress().pct===100 && e.target.checked){ setTimeout(()=>pop('🏆'),400); }
     renderAll();
