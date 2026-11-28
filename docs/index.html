@@ -2216,7 +2216,9 @@ function stockHtml(){
       <button class="ghost" data-stbuy="${s.id}" title="Ajouter à ma liste de courses">🛒</button><button class="ghost" data-stdel="${s.id}" aria-label="Supprimer">✕</button></span></div>${stEdit===s.id?stockForm(s):''}</div>`; };
   const known=SHOP_CATS.map(c=>c[0]), groups=[...SHOP_CATS,['__x','📦','Sans rayon']].map(([k,e,n])=>[e,n,S.stock.filter(s=>k==='__x'?!known.includes(s.cat):s.cat===k)]).filter(g=>g[2].length);
   const rows=groups.map(([e,n,l])=>`<div data-stgrp="1" ${l.some(x=>stMatch(x,sq))?'':'hidden'}><h3 class="evh">${e} ${n} <span class="chip" data-stcnt="1">${l.filter(x=>stMatch(x,sq)).length}</span></h3>${l.map(row).join('')}</div>`).join('');
-  return `<div class="card routine"><h2>🥫 Mon stock <span class="chip">${S.stock.length} article${S.stock.length>1?'s':''}</span></h2>
+  const low=S.stock.filter(x=>x.n-plannedOf(x.id)<0).length;
+  return `<details class="card routine" data-stdet="1" ${S.stockOpen||sq?'open':''}><summary style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <h2>🥫 Mon stock <span class="chip">${S.stock.length} article${S.stock.length>1?'s':''}</span>${low?` <span class="chip" title="Il en manque pour les repas prévus">⚠️ ${low}</span>`:''}</h2><span class="chev">▾</span></summary>
     <p class="sub">Rangé par rayon. Touche le nombre pour l'écrire, ✏️ pour corriger le nom, le rayon ou l'unité (pots, sachets, kg, cL…). Rempli tout seul quand tu « retires les articles pris » de ta liste ; tu peux aussi ajouter ce que tu as déjà.</p>
     ${S.stock.length>3?`<div class="stsearch"><input type="search" data-stsearch="1" value="${esc(stQuery)}" placeholder="🔍 Chercher dans mon stock (ex : œuf, pâtes…)" autocomplete="off" enterkeyhint="search"><button type="button" class="ghost" data-stclear="1" aria-label="Effacer la recherche" ${sq?'':'hidden'}>✕</button></div>`:''}
     <div data-stbox="1">${rows||'<p class="sub">Vide pour l\'instant.</p>'}<p class="sub" data-stnone="1" ${sq&&!S.stock.some(x=>stMatch(x,sq))?'':'hidden'}>Rien trouvé pour « <b>${esc(stQuery.trim())}</b> ». Tu peux l'ajouter juste en dessous.</p></div>
@@ -2224,8 +2226,10 @@ function stockHtml(){
       <input data-k="n" type="text" inputmode="decimal" value="1" aria-label="Quantité" style="width:56px;flex:none">
       <select data-k="u" aria-label="Unité" style="width:auto;flex:none">${unitOpts('piece')}</select>
       <select data-k="cat" aria-label="Rayon" style="width:auto;flex:none">${catOpts('sale')}</select>
-      <button class="primary">+</button></form></div>`;
+      <button class="primary">+</button></form></details>`;
 }
+// Mon stock replié ou ouvert : je m'en souviens
+document.addEventListener('toggle',e=>{ const d=e.target; if(d&&d.dataset&&d.dataset.stdet&&!!S.stockOpen!==d.open){ S.stockOpen=d.open; save(); } },true);
 /* Fêtes : Noël, anniversaires… */
 function nextDate(mm,dd){ const t=new Date(), y=t.getFullYear(), d=`${y}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`; return d>=todayKey()?d:`${y+1}-${d.slice(5)}`; }
 const PARTY_TPL={
